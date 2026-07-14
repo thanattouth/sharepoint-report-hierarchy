@@ -392,6 +392,8 @@ select:hover, input:hover { border-color: #c5c5cd; }
 .hierarchy-row.depth-2 { padding-left: 52px; }
 .hierarchy-row.depth-3 { padding-left: 68px; }
 .tree-line { position: absolute; top: 0; bottom: 0; left: 27px; border-left: 1px solid #d9d9df; }
+.hierarchy-row:first-child .tree-line { top: 50%; }
+.hierarchy-row:last-child .tree-line { bottom: 50%; }
 .depth-2 .tree-line { left: 43px; }
 .depth-3 .tree-line { left: 59px; }
 .node-mark {
