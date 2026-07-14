@@ -85,47 +85,34 @@ export default async function Home({
 
   return (
     <div className="app-shell">
-      <aside className="sidebar" aria-label="เมนูหลัก">
+      <header className="topbar">
         <Link className="brand" href="/" aria-label="Sensitivity Report home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>
-            <strong>Sensitivity</strong>
-            <small>REPORT</small>
+            <strong>Sensitivity Report</strong>
+            <small>SharePoint Governance</small>
           </span>
         </Link>
 
-        <nav className="primary-nav">
-          <p className="nav-label">REPORTING</p>
-          <a className="nav-item active" href="#overview"><span aria-hidden="true">⌂</span> ภาพรวม</a>
-          <a className="nav-item" href="#inventory"><span aria-hidden="true">▤</span> File Inventory</a>
-          <a className="nav-item" href="#scan-status"><span aria-hidden="true">↻</span> Scan Operations</a>
-          <p className="nav-label nav-label-spaced">CONFIGURATION</p>
-          <a className="nav-item" href="#hierarchy"><span aria-hidden="true">⌘</span> Hierarchy &amp; Access</a>
+        <nav className="primary-nav" aria-label="เมนูหลัก">
+          <a className="nav-item active" href="#overview">Overview</a>
+          <a className="nav-item" href="#hierarchy">Hierarchy</a>
+          <a className="nav-item" href="#inventory">File inventory</a>
+          <a className="nav-item" href="#scan-status">Scan status</a>
         </nav>
 
-        <div className="security-note">
-          <span className="lock-icon" aria-hidden="true">◆</span>
-          <div>
-            <strong>Server-scoped data</strong>
-            <p>ชื่อไฟล์และ path ถูกกรองก่อนส่งออกจาก server</p>
+        <div className="topbar-right">
+          <span className={`freshness-pill freshness-${report?.freshness ?? "unknown"}`}>
+            <i aria-hidden="true" /> {report?.freshness === "stale" ? "ข้อมูลล้าสมัย" : report?.freshness === "partial" ? "ข้อมูลไม่สมบูรณ์" : "Cached inventory"}
+          </span>
+          <div className="identity">
+            <span className="avatar">{persona.initials}</span>
+            <span><strong>{persona.name}</strong><small>{capability}</small></span>
           </div>
         </div>
-        <div className="sidebar-footer">PROTOTYPE <span>P0–P3</span></div>
-      </aside>
+      </header>
 
       <div className="workspace">
-        <header className="topbar">
-          <div className="breadcrumb"><span>SharePoint Governance</span><b>/</b> Sensitivity Report</div>
-          <div className="topbar-right">
-            <span className={`freshness-pill freshness-${report?.freshness ?? "unknown"}`}>
-              <i aria-hidden="true" /> {report?.freshness === "stale" ? "ข้อมูลล้าสมัย" : report?.freshness === "partial" ? "ข้อมูลไม่สมบูรณ์" : "Cached inventory"}
-            </span>
-            <div className="identity">
-              <span className="avatar">{persona.initials}</span>
-              <span><strong>{persona.name}</strong><small>{capability}</small></span>
-            </div>
-          </div>
-        </header>
 
         <main id="overview">
           <section className="page-heading">

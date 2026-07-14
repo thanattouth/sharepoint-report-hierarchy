@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Noto_Sans_Thai, IBM_Plex_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 
-const sans = Noto_Sans_Thai({
-  variable: "--font-sans",
-  subsets: ["thai", "latin"],
-});
-
-const mono = IBM_Plex_Mono({
-  variable: "--font-mono",
+const body = DM_Sans({
+  variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+});
+
+const thai = Noto_Sans_Thai({
+  variable: "--font-thai",
+  subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const mono = JetBrains_Mono({
+  variable: "--font-code",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -38,10 +45,10 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       images: [
         {
-          url: new URL("/og-flip7.png", baseUrl).toString(),
-          width: 1729,
-          height: 910,
-          alt: "Retro-playful SharePoint Sensitivity Label Report preview",
+          url: new URL("/og-genesis.png", baseUrl).toString(),
+          width: 1731,
+          height: 909,
+          alt: "SharePoint Sensitivity Label Report editorial interface preview",
         },
       ],
     },
@@ -49,7 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: [new URL("/og-flip7.png", baseUrl).toString()],
+      images: [new URL("/og-genesis.png", baseUrl).toString()],
     },
   };
 }
@@ -61,7 +68,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <body className={`${sans.variable} ${mono.variable}`}>
+      <head>
+        <link rel="preconnect" href="https://api.fontshare.com" />
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=general-sans@600,700&display=swap"
+        />
+      </head>
+      <body className={`${body.variable} ${thai.variable} ${mono.variable}`}>
         {children}
       </body>
     </html>
