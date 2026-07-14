@@ -40,7 +40,7 @@ export class FixtureInventoryStore implements InventoryStore {
     );
   }
 
-  async upsert(): Promise<void> {
+  async applyChanges(): Promise<void> {
     // Deterministic fixture store is intentionally immutable in P0-P3.
   }
 }

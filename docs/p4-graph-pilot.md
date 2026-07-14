@@ -1,0 +1,64 @@
+# P4 Microsoft Graph pilot runbook
+
+## Current implementation
+
+- Azure Identity token provider with managed/workload identity as the default.
+- Client-secret mode for an approved local pilot only.
+- One-Site allowlist validated before any Graph request.
+- Site-drive discovery, drive delta paging, label extraction, item outcomes, deletion
+  markers, and delta-state persistence ports.
+- Bounded concurrency, bounded retry, `Retry-After`, safe Graph next-link validation,
+  and request-ID capture.
+- No Graph call from the report page or export path.
+- Composition factory that wires environment validation, Azure Identity, transport, and
+  injected production stores without coupling them to the report UI.
+
+## Approval gate before live execution
+
+Record all of these decisions before supplying credentials:
+
+1. Non-production SharePoint Site hostname, path, and canonical Graph Site ID.
+2. Controlled test files and manually verified expected labels.
+3. Secret label ID or IDs.
+4. Scanner Entra application/managed identity and credential model.
+5. Application permission and admin-consent approval. The extraction API documents
+   `Files.Read.All` as least privileged; do not silently substitute `Sites.Selected`.
+6. Pilot inventory, scan-run, and delta-state storage adapter.
+7. Data retention, access, logging, and incident owner.
+
+## Scanner environment contract
+
+Copy `.env.example` to a local secret-managed environment. Do not commit the populated
+file. Required values are:
+
+- `SCANNER_TENANT_ID`
+- `SCANNER_ALLOWED_SITE_ID`
+- `SCANNER_SECRET_LABEL_IDS`
+- `SCANNER_AUTH_MODE=default` for managed/workload identity, optionally with
+  `SCANNER_MANAGED_IDENTITY_CLIENT_ID`
+- `SCANNER_AUTH_MODE=client-secret` for a local pilot, plus `SCANNER_CLIENT_ID` and
+  `SCANNER_CLIENT_SECRET`
+
+Concurrency is restricted to 1–16 and retries to 0–8. Start with the defaults of four
+concurrent extractions and three retries, then tune only from measured pilot telemetry.
+
+After the approval gate and secret-managed environment are ready, run `npm run p4:check`.
+The command verifies token acquisition, the exact allowlisted Site, and its document
+libraries without enumerating files or extracting labels. It prints no token or secret.
+Only proceed to the scanner executor after this check succeeds and a durable store adapter
+is configured.
+
+## Safe execution sequence
+
+1. Validate configuration and confirm the requested Site equals the allowlist.
+2. Save a running scan record.
+3. Discover document-library drives for that Site.
+4. Read each saved delta cursor or establish an initial baseline.
+5. Extract labels from changed files with bounded concurrency.
+6. Atomically apply inventory upserts and deletion markers per drive.
+7. Advance the delta cursor only after inventory persistence succeeds.
+8. Save succeeded, partial, or failed run metrics without logging file names or tokens.
+9. Reconcile cached results against the controlled files manually before any expansion.
+
+Do not broaden the allowlist or schedule tenant-wide scanning until the P4 exit gate,
+storage measurement, security review, and customer UAT are complete.

@@ -60,6 +60,17 @@ Enforce all of these on every change:
 - Read active `scanEnabled` Sites for scheduled work independently of report users. Scan each Site once per run and apply business mappings only when authorizing cached report reads.
 - Preserve unrelated user changes in the worktree.
 
+## Build for production maintainability
+
+- Keep Microsoft Graph authentication, transport, orchestration, and persistence behind separate typed ports. Inject fetch, time, sleep, logging, and stores where deterministic testing matters.
+- Validate scanner configuration at worker startup and fail closed. Never add tenant-specific production defaults or accept more than the approved P4 Site allowlist.
+- Prefer managed identity or workload identity for hosted workloads. Keep client-secret mode limited to an approved local pilot and obtain tokens through Azure Identity.
+- Treat delta processing as at-least-once: apply idempotent inventory changes before saving the cursor, and never advance it after a persistence failure.
+- Log operational identifiers, status, attempt, duration, and Graph request ID without tokens, secrets, file names, paths, or query-string delta tokens.
+- Add contract tests for retries, throttling, locked files, partial runs, storage failure, cursor safety, configuration rejection, and cross-Site denial.
+- Record production-critical permission, storage, schema, retention, and deployment decisions in ADRs/runbooks. Require a migration and rollback plan for persistent schema changes.
+- Review dependency vulnerabilities before a release; do not apply breaking automated fixes without validating the Sites build and runtime.
+
 ## Apply Genesis design
 
 Use the business-first editorial system in `../../DESIGN.md`:
@@ -133,11 +144,12 @@ Do not request real Graph permissions or broaden site access before this checkpo
 
 1. Add a real scanner adapter behind existing contracts.
 2. Use one approved non-production allowlisted site and controlled test files.
-3. Call `POST /drives/{drive-id}/items/{item-id}/extractSensitivityLabels` only from the scanner environment.
-4. Persist real outcomes, scan timestamps, correlation IDs, and delta state.
-5. Implement bounded concurrency and bounded retry for `429`, selected `503/5xx`, and transient network failures; respect `Retry-After`.
-6. Compare cached counts and rows with manually verified test files.
-7. Measure duration, throughput, throttling, write rate, query patterns, and storage volume.
+3. Verify the exact permission against current Microsoft documentation. `extractSensitivityLabels` documents application `Files.Read.All`; do not assume `Sites.Selected` is accepted when the endpoint does not list it.
+4. Call `POST /drives/{drive-id}/items/{item-id}/extractSensitivityLabels` only from the scanner environment.
+5. Persist real outcomes, scan timestamps, correlation IDs, and delta state.
+6. Implement bounded concurrency and bounded retry for `429`, selected `503/5xx`, and transient network failures; respect `Retry-After`.
+7. Compare cached counts and rows with manually verified test files.
+8. Measure duration, throughput, throttling, write rate, query patterns, and storage volume.
 
 Do not expand to production-wide scanning during P4.
 

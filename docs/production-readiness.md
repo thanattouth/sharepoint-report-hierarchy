@@ -1,0 +1,25 @@
+# Production readiness baseline
+
+This repository is an evolving production product, not a disposable prototype.
+
+## Required engineering controls
+
+- Preserve report/scanner identity and deployment separation.
+- Keep domain, Graph transport/authentication, orchestration, and stores behind typed
+  contracts with deterministic tests.
+- Validate configuration at startup and fail closed on missing or out-of-scope values.
+- Use idempotent writes, cursor-after-data ordering, bounded concurrency, bounded retry,
+  and partial/failure outcomes.
+- Keep secrets and sensitive file metadata out of browser code and operational logs.
+- Require migrations, rollback steps, observability, retention, and ownership before a
+  persistent store is promoted to production.
+- Run lint, type check, unit/rendered tests, build, and dependency audit before release.
+
+## Dependency security baseline — 2026-07-14
+
+Build tooling was updated to remove all high and critical findings reported by `npm audit`.
+Two moderate findings remain in Next.js's nested PostCSS dependency. npm currently proposes
+an incompatible Next.js downgrade as the only automatic fix, so it was not applied. Track a
+compatible upstream Next.js release, reassess the advisory's runtime reachability, and rerun
+the full Sites build before upgrading. Never use `npm audit fix --force` without reviewing
+the dependency graph and validating runtime compatibility.

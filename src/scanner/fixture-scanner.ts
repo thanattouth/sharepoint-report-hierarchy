@@ -19,6 +19,7 @@ export class FixtureScanner implements SensitivityScanner {
       secretCount: 0,
       noLabelCount: 0,
       lockedCount: 0,
+      throttledCount: 0,
       unsupportedCount: 0,
       failedCount: 0,
     };

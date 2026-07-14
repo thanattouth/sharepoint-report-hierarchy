@@ -15,6 +15,16 @@ export interface SensitivityScanner {
   queue(request: QueueScanRequest): Promise<SensitivityScanRun>;
 }
 
+export type ScanExecutionRequest = {
+  runId: string;
+  trigger: QueueScanRequest["trigger"];
+  target: GovernedSharePointSite;
+};
+
+export interface SensitivityScanExecutor {
+  execute(request: ScanExecutionRequest): Promise<SensitivityScanRun>;
+}
+
 export function scheduledScanTargets(sites: GovernedSharePointSite[]): ScanTarget[] {
   return [
     ...new Set(

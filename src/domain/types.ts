@@ -91,6 +91,7 @@ export type SensitivityScanRun = {
   secretCount: number;
   noLabelCount: number;
   lockedCount: number;
+  throttledCount: number;
   unsupportedCount: number;
   failedCount: number;
   errorSummary?: string;
@@ -100,6 +101,14 @@ export type DeltaState = {
   driveId: string;
   cursor: string;
   updatedAt: string;
+};
+
+export type DeletedInventoryIdentity = {
+  tenantId: string;
+  siteId: string;
+  driveId: string;
+  itemId: string;
+  deletedAt: string;
 };
 
 export function stableFileKey(item: SensitivityInventoryItem): string {

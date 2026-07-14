@@ -1,5 +1,6 @@
 import type {
   DeltaState,
+  DeletedInventoryIdentity,
   GovernedSharePointSite,
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
@@ -17,7 +18,10 @@ export interface HierarchyStore {
 
 export interface InventoryStore {
   listCurrentBySiteIds(siteIds: string[]): Promise<SensitivityInventoryItem[]>;
-  upsert(items: SensitivityInventoryItem[]): Promise<void>;
+  applyChanges(changes: {
+    upserts: SensitivityInventoryItem[];
+    deletions: DeletedInventoryIdentity[];
+  }): Promise<void>;
 }
 
 export interface ScanRunStore {
