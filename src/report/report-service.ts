@@ -1,8 +1,10 @@
 import { resolveHierarchyScope, siteIdsUnderNode } from "../domain/hierarchy";
 import type {
   AppCapability,
+  GovernedSharePointSite,
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
+  GovernanceHierarchySiteMapping,
   ScanStatus,
   SensitivityInventoryItem,
   SensitivityScanRun,
@@ -35,7 +37,7 @@ export type ReportRequest = {
 };
 
 export type ReportData = {
-  state: "ready" | "no-assignment" | "no-scan" | "zero-secret";
+  state: "ready" | "no-assignment" | "no-sites" | "no-scan" | "zero-secret";
   userUpn: string;
   capability: AppCapability;
   assignedNodeIds: string[];
@@ -59,7 +61,16 @@ export type ReportData = {
     siteCount: number;
     childCount: number;
   }>;
-  siteRollups: Array<{ siteId: string; siteName: string; count: number }>;
+  siteRollups: Array<{
+    siteId: string;
+    siteName: string;
+    webUrl: string;
+    nodeId: string;
+    nodeName: string;
+    count: number;
+    lastScannedAt?: string;
+    scanState: "current" | "stale" | "attention" | "never-scanned";
+  }>;
   libraryRollups: Array<{
     siteId: string;
     siteName: string;
@@ -88,6 +99,8 @@ export class ReportAuthorizationError extends Error {
 type ReportSource = {
   nodes: GovernanceHierarchyNode[];
   assignments: GovernanceHierarchyAssignment[];
+  sites: GovernedSharePointSite[];
+  siteMappings: GovernanceHierarchySiteMapping[];
   inventory: SensitivityInventoryItem[];
   runs: SensitivityScanRun[];
   secretLabelIds: Set<string>;
@@ -111,6 +124,8 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     request.userUpn,
     source.nodes,
     source.assignments,
+    source.sites,
+    source.siteMappings,
   );
   const pageSize = Math.min(Math.max(request.filters.pageSize ?? 6, 1), 50);
   const requestedPage = Math.max(request.filters.page ?? 1, 1);
@@ -140,9 +155,10 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     freshness: "unknown" as const,
   };
 
-  if (scope.assignedNodeIds.length === 0 || scope.allowedSiteIds.length === 0) {
+  if (scope.assignedNodeIds.length === 0) {
     return { state: "no-assignment", ...emptyBase };
   }
+  if (scope.allowedSiteIds.length === 0) return { state: "no-sites", ...emptyBase };
   if (request.scenario === "no-scan") {
     return { state: "no-scan", ...emptyBase };
   }
@@ -164,18 +180,25 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   const scopeSecretCount = secretRows.length;
 
   let filtered = secretRows;
+  let explorerSiteIds = new Set(scope.allowedSiteIds);
   if (request.filters.nodeId) {
     if (!scope.visibleNodeIds.includes(request.filters.nodeId)) {
       throw new ReportAuthorizationError();
     }
     const nodeSites = new Set(
-      siteIdsUnderNode(request.filters.nodeId, source.nodes, scope.visibleNodeIds),
+      siteIdsUnderNode(
+        request.filters.nodeId,
+        source.nodes,
+        scope.visibleNodeIds,
+        source.sites,
+        source.siteMappings,
+      ),
     );
+    explorerSiteIds = nodeSites;
     filtered = filtered.filter((item) => nodeSites.has(item.siteId));
   }
   if (request.filters.siteId) {
     if (!allowedSites.has(request.filters.siteId)) throw new ReportAuthorizationError();
-    filtered = filtered.filter((item) => item.siteId === request.filters.siteId);
   }
   if (request.filters.library) {
     filtered = filtered.filter((item) => item.libraryName === request.filters.library);
@@ -195,12 +218,18 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   const effectiveNow = new Date(
     request.scenario === "stale" ? "2026-07-18T08:00:00Z" : "2026-07-14T08:00:00Z",
   );
-  const isFresh = (item: SensitivityInventoryItem) =>
-    effectiveNow.getTime() - new Date(item.scannedAt).getTime() <= 24 * 60 * 60 * 1000;
+  const isFreshTimestamp = (value: string) =>
+    effectiveNow.getTime() - new Date(value).getTime() <= 24 * 60 * 60 * 1000;
+  const isFresh = (item: SensitivityInventoryItem) => isFreshTimestamp(item.scannedAt);
   if (request.filters.freshness) {
     filtered = filtered.filter((item) =>
       request.filters.freshness === "current" ? isFresh(item) : !isFresh(item),
     );
+  }
+
+  const siteFacetRows = filtered;
+  if (request.filters.siteId) {
+    filtered = filtered.filter((item) => item.siteId === request.filters.siteId);
   }
 
   filtered = [...filtered].sort(
@@ -226,7 +255,15 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     (node) => node.active && scope.visibleNodeIds.includes(node.id),
   );
   const hierarchyRollups = visibleNodes.map((node) => {
-    const siteIds = new Set(siteIdsUnderNode(node.id, source.nodes, scope.visibleNodeIds));
+    const siteIds = new Set(
+      siteIdsUnderNode(
+        node.id,
+        source.nodes,
+        scope.visibleNodeIds,
+        source.sites,
+        source.siteMappings,
+      ),
+    );
     return {
       nodeId: node.id,
       parentId: node.parentId,
@@ -239,15 +276,11 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     };
   });
 
-  const siteMap = new Map<string, { siteName: string; items: SensitivityInventoryItem[] }>();
   const libraryMap = new Map<
     string,
     { siteId: string; siteName: string; libraryName: string; items: SensitivityInventoryItem[] }
   >();
   for (const item of filtered) {
-    const site = siteMap.get(item.siteId) ?? { siteName: item.siteName, items: [] };
-    site.items.push(item);
-    siteMap.set(item.siteId, site);
     const key = `${item.siteId}:${item.libraryName}`;
     const library = libraryMap.get(key) ?? {
       siteId: item.siteId,
@@ -258,11 +291,43 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     library.items.push(item);
     libraryMap.set(key, library);
   }
-  const siteRollups = [...siteMap].map(([siteId, value]) => ({
-    siteId,
-    siteName: value.siteName,
-    count: dedupe(value.items).length,
-  }));
+  const visibleNodeById = new Map(visibleNodes.map((node) => [node.id, node]));
+  const activeMappingBySite = new Map(
+    source.siteMappings
+      .filter((mapping) => mapping.active)
+      .map((mapping) => [mapping.siteId, mapping]),
+  );
+  const siteRollups = source.sites
+    .filter((site) => site.active && explorerSiteIds.has(site.id))
+    .map((site) => {
+      const siteItems = scopedInventory.filter((item) => item.siteId === site.id);
+      const lastScannedAt = siteItems
+        .map((item) => item.scannedAt)
+        .sort((a, b) => b.localeCompare(a))[0];
+      const hasAttention = siteItems.some((item) =>
+        ["locked", "throttled", "failed"].includes(item.scanStatus),
+      );
+      const mapping = activeMappingBySite.get(site.id);
+      const node = mapping ? visibleNodeById.get(mapping.nodeId) : undefined;
+      const scanState = !lastScannedAt
+        ? "never-scanned"
+        : hasAttention
+          ? "attention"
+          : isFreshTimestamp(lastScannedAt)
+            ? "current"
+            : "stale";
+      return {
+        siteId: site.id,
+        siteName: site.name,
+        webUrl: `https://${site.hostname}${site.path}`,
+        nodeId: mapping?.nodeId ?? "unmapped",
+        nodeName: node?.name ?? "Unmapped",
+        count: dedupe(siteFacetRows.filter((item) => item.siteId === site.id)).length,
+        lastScannedAt,
+        scanState,
+      } as const;
+    })
+    .sort((a, b) => b.count - a.count || a.siteName.localeCompare(b.siteName));
   const libraryRollups = [...libraryMap.values()].map((value) => ({
     siteId: value.siteId,
     siteName: value.siteName,
@@ -270,8 +335,6 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     count: dedupe(value.items).length,
   }));
 
-  const allScopedSites = new Map<string, string>();
-  for (const item of scopedInventory) allScopedSites.set(item.siteId, item.siteName);
   const allLibraries = [...new Set(scopedInventory.map((item) => item.libraryName))].sort();
   const completedRun = source.runs.find((run) => run.status === "succeeded");
   const partialRun = source.runs.find((run) => run.status === "partial");
@@ -298,7 +361,9 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     libraryRollups,
     options: {
       nodes: visibleNodes.map((node) => ({ id: node.id, name: node.name, type: node.type })),
-      sites: [...allScopedSites].map(([id, name]) => ({ id, name })),
+      sites: source.sites
+        .filter((site) => site.active && allowedSites.has(site.id))
+        .map((site) => ({ id: site.id, name: site.name })),
       libraries: allLibraries,
     },
     statusCounts,

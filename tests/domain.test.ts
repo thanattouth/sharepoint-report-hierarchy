@@ -10,8 +10,10 @@ import {
   SECRET_LABEL_IDS,
   hierarchyAssignments,
   hierarchyNodes,
+  hierarchySiteMappings,
   inventoryItems,
   scanRuns,
+  sharePointSites,
 } from "../src/fixtures/data";
 import {
   buildReport,
@@ -19,10 +21,13 @@ import {
   type ReportRequest,
 } from "../src/report/report-service";
 import { FixtureScanner } from "../src/scanner/fixture-scanner";
+import { scheduledScanTargets } from "../src/scanner/contracts";
 
 const source = {
   nodes: hierarchyNodes,
   assignments: hierarchyAssignments,
+  sites: sharePointSites,
+  siteMappings: hierarchySiteMappings,
   inventory: inventoryItems,
   runs: scanRuns,
   secretLabelIds: SECRET_LABEL_IDS,
@@ -32,32 +37,42 @@ function request(userUpn: string, filters: ReportRequest["filters"] = {}): Repor
   return { userUpn, capability: "ReportViewer", scenario: "current", filters };
 }
 
+function resolve(userUpn: string) {
+  return resolveHierarchyScope(
+    userUpn,
+    hierarchyNodes,
+    hierarchyAssignments,
+    sharePointSites,
+    hierarchySiteMappings,
+  );
+}
+
 test("EVP sees every active descendant site", () => {
-  const scope = resolveHierarchyScope("nipaporn@contoso.com", hierarchyNodes, hierarchyAssignments);
+  const scope = resolve("nipaporn@contoso.com");
   assert.deepEqual(
     scope.allowedSiteIds.sort(),
-    ["site-aurora", "site-consumer", "site-ledger", "site-nova", "site-supply"],
+    ["site-aurora", "site-commercial-hub", "site-consumer", "site-ledger", "site-nova", "site-supply"],
   );
   assert.ok(!scope.allowedSiteIds.includes("site-archived"));
 });
 
 test("Department, group and project scopes remain inside their branches", () => {
   assert.deepEqual(
-    resolveHierarchyScope("anan@contoso.com", hierarchyNodes, hierarchyAssignments).allowedSiteIds.sort(),
-    ["site-aurora", "site-consumer", "site-nova"],
+    resolve("anan@contoso.com").allowedSiteIds.sort(),
+    ["site-aurora", "site-commercial-hub", "site-consumer", "site-nova"],
   );
   assert.deepEqual(
-    resolveHierarchyScope("mali@contoso.com", hierarchyNodes, hierarchyAssignments).allowedSiteIds.sort(),
+    resolve("mali@contoso.com").allowedSiteIds.sort(),
     ["site-aurora", "site-nova"],
   );
   assert.deepEqual(
-    resolveHierarchyScope("prach@contoso.com", hierarchyNodes, hierarchyAssignments).allowedSiteIds,
+    resolve("prach@contoso.com").allowedSiteIds,
     ["site-aurora"],
   );
 });
 
 test("multiple assignments form a deduplicated union", () => {
-  const scope = resolveHierarchyScope("delegate@contoso.com", hierarchyNodes, hierarchyAssignments);
+  const scope = resolve("delegate@contoso.com");
   assert.deepEqual(scope.allowedSiteIds.sort(), ["site-aurora", "site-ledger", "site-nova"]);
   const report = buildReport(source, request("delegate@contoso.com"));
   assert.equal(report.scopeSecretCount, 7);
@@ -68,12 +83,19 @@ test("no assignment and inactive assignment expose no inventory", () => {
   assert.equal(buildReport(source, request("inactive@contoso.com")).state, "no-assignment");
 });
 
+test("business assignment without mapped sites is distinct from no assignment", () => {
+  assert.equal(
+    buildReport({ ...source, siteMappings: [] }, request("nipaporn@contoso.com")).state,
+    "no-sites",
+  );
+});
+
 test("invalid hierarchy rejects missing parents and cycles", () => {
   const missingParent: GovernanceHierarchyNode[] = [
     { id: "child", parentId: "missing", type: "Project", name: "Child", active: true },
   ];
   assert.throws(
-    () => validateHierarchyConfiguration(missingParent, []),
+    () => validateHierarchyConfiguration(missingParent, [], [], []),
     HierarchyConfigurationError,
   );
 
@@ -81,7 +103,26 @@ test("invalid hierarchy rejects missing parents and cycles", () => {
     { id: "a", parentId: "b", type: "Department", name: "A", active: true },
     { id: "b", parentId: "a", type: "Group", name: "B", active: true },
   ];
-  assert.throws(() => validateHierarchyConfiguration(cycle, []), /cycle detected/);
+  assert.throws(() => validateHierarchyConfiguration(cycle, [], [], []), /cycle detected/);
+});
+
+test("SharePoint sites are flat records mapped separately to business nodes", () => {
+  assert.ok(hierarchyNodes.every((node) => !("site" in node)));
+  assert.ok(sharePointSites.some((site) => site.id === "site-commercial-hub"));
+  assert.ok(
+    hierarchySiteMappings.some(
+      (mapping) =>
+        mapping.nodeId === "dept-commercial" && mapping.siteId === "site-commercial-hub",
+    ),
+  );
+  assert.throws(
+    () =>
+      validateHierarchyConfiguration(hierarchyNodes, hierarchyAssignments, sharePointSites, [
+        ...hierarchySiteMappings,
+        { nodeId: "group-enterprise", siteId: "site-commercial-hub", active: true },
+      ]),
+    /multiple active hierarchy placements/,
+  );
 });
 
 test("requesting a sibling branch is denied at the report boundary", () => {
@@ -118,7 +159,7 @@ test("hierarchy rollups expose scalable navigation metadata", () => {
 
   assert.deepEqual(
     { parentId: root?.parentId, siteCount: root?.siteCount, childCount: root?.childCount },
-    { parentId: undefined, siteCount: 5, childCount: 2 },
+    { parentId: undefined, siteCount: 6, childCount: 2 },
   );
   assert.deepEqual(
     {
@@ -126,7 +167,7 @@ test("hierarchy rollups expose scalable navigation metadata", () => {
       siteCount: commercial?.siteCount,
       childCount: commercial?.childCount,
     },
-    { parentId: "evp-corporate", siteCount: 3, childCount: 2 },
+    { parentId: "evp-corporate", siteCount: 4, childCount: 2 },
   );
 });
 
@@ -147,4 +188,14 @@ test("fixture scanner queues immediately without scanning files", async () => {
   assert.equal(queued.status, "queued");
   assert.equal(queued.scannedCount, 0);
   assert.deepEqual(queued.targetSiteIds, ["site-aurora"]);
+});
+
+test("scheduled targets come from flat scan-enabled sites, not user assignments", () => {
+  const targets = scheduledScanTargets(sharePointSites);
+  assert.deepEqual(
+    targets.map((target) => target.siteId).sort(),
+    ["site-aurora", "site-commercial-hub", "site-consumer", "site-ledger", "site-nova", "site-supply"],
+  );
+  assert.ok(!targets.some((target) => target.siteId === "site-archived"));
+  assert.equal(new Set(targets.map((target) => target.siteId)).size, targets.length);
 });

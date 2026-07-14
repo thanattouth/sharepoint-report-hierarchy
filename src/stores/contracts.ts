@@ -1,7 +1,9 @@
 import type {
   DeltaState,
+  GovernedSharePointSite,
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
+  GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
 } from "../domain/types";
@@ -9,6 +11,8 @@ import type {
 export interface HierarchyStore {
   getNodes(): Promise<GovernanceHierarchyNode[]>;
   getAssignments(): Promise<GovernanceHierarchyAssignment[]>;
+  getSites(): Promise<GovernedSharePointSite[]>;
+  getSiteMappings(): Promise<GovernanceHierarchySiteMapping[]>;
 }
 
 export interface InventoryStore {

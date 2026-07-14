@@ -13,6 +13,14 @@ import { RunNowButton } from "./run-now-button";
 
 type HierarchyRollup = ReportData["hierarchyRollups"][number];
 const SCOPE_PAGE_SIZE = 6;
+const SITE_PAGE_SIZE = 5;
+
+const siteScanLabels = {
+  current: "Current",
+  stale: "Stale",
+  attention: "Attention",
+  "never-scanned": "Awaiting scan",
+};
 
 const statusLabels = {
   success: "สำเร็จ",
@@ -152,6 +160,21 @@ export default async function Home({
   const scopeBreadcrumb = activeScope ? hierarchyPath(activeScope, hierarchyById) : [];
   const scopeSecretCount = activeScope?.count ?? report?.scopeSecretCount ?? 0;
   const scopeSiteCount = activeScope?.siteCount ?? report?.siteCount ?? 0;
+  const siteSearch = getSingle(params.siteQ)?.trim() ?? "";
+  const normalizedSiteSearch = siteSearch.toLocaleLowerCase();
+  const siteCandidates = (report?.siteRollups ?? []).filter((site) =>
+    !normalizedSiteSearch || [site.siteName, site.siteId, site.nodeName].some((value) =>
+      value.toLocaleLowerCase().includes(normalizedSiteSearch),
+    ),
+  );
+  const requestedSitePage = Math.max(Number(getSingle(params.sitePage) ?? "1") || 1, 1);
+  const sitePageCount = Math.max(Math.ceil(siteCandidates.length / SITE_PAGE_SIZE), 1);
+  const sitePage = Math.min(requestedSitePage, sitePageCount);
+  const visibleSites = siteCandidates.slice(
+    (sitePage - 1) * SITE_PAGE_SIZE,
+    sitePage * SITE_PAGE_SIZE,
+  );
+  const selectedSite = report?.options.sites.find((site) => site.id === getSingle(params.site));
 
   return (
     <div className="app-shell">
@@ -173,7 +196,7 @@ export default async function Home({
 
         <div className="topbar-right">
           <span className={`freshness-pill freshness-${report?.freshness ?? "unknown"}`}>
-            <i aria-hidden="true" /> {report?.freshness === "stale" ? "ข้อมูลล้าสมัย" : report?.freshness === "partial" ? "ข้อมูลไม่สมบูรณ์" : "Cached inventory"}
+            <i aria-hidden="true" /> {report?.freshness === "stale" ? "Scheduled cache ล้าสมัย" : report?.freshness === "partial" ? "Scheduled scan ไม่สมบูรณ์" : "Scheduled cache"}
           </span>
           <div className="identity">
             <span className="avatar">{persona.initials}</span>
@@ -189,15 +212,15 @@ export default async function Home({
             <div>
               <p className="eyebrow">MICROSOFT PURVIEW · SHAREPOINT</p>
               <h1>Secret file exposure</h1>
-              <p>ติดตามไฟล์ที่มี Sensitivity Label ภายใน hierarchy scope ที่คุณรับผิดชอบ</p>
+              <p>ติดตาม Sensitivity Label จาก scheduled inventory ภายใน business scope ที่คุณรับผิดชอบ</p>
             </div>
             <div className="heading-actions">
-              {report?.capability === "ReportAdmin" && report.state !== "no-assignment" ? (
+              {report?.capability === "ReportAdmin" && !["no-assignment", "no-sites"].includes(report.state) ? (
                 <a className="button button-secondary" href={`/export?${exportParams.toString()}`}>⇩ Export CSV</a>
               ) : (
                 <button className="button button-secondary" disabled title="ต้องใช้ ReportAdmin">⇩ Export CSV</button>
               )}
-              <RunNowButton userUpn={selectedUser} capability={capability} disabled={!report || report.state === "no-assignment"} />
+              <RunNowButton userUpn={selectedUser} capability={capability} disabled={!report || ["no-assignment", "no-sites"].includes(report.state)} />
             </div>
           </section>
 
@@ -241,6 +264,11 @@ export default async function Home({
               <span className="empty-icon">○</span>
               <div><p className="eyebrow">NO ACTIVE ASSIGNMENT</p><h2>บัญชีนี้ยังไม่มี hierarchy scope</h2><p>แม้มี app role ระบบจะไม่แสดง inventory จนกว่าจะมี active assignment ที่ถูกต้อง</p></div>
             </section>
+          ) : report?.state === "no-sites" ? (
+            <section className="empty-state" role="status">
+              <span className="empty-icon">○</span>
+              <div><p className="eyebrow">NO MAPPED SITES</p><h2>มี business scope แต่ยังไม่มี SharePoint Site mapping</h2><p>Hierarchy ระบุขอบเขตการมองเห็นเท่านั้น Site ต้องถูกผูกผ่าน mapping แยกก่อนจึงจะแสดง scheduled inventory</p></div>
+            </section>
           ) : report?.state === "no-scan" ? (
             <section className="empty-state" role="status">
               <span className="empty-icon">◷</span>
@@ -266,8 +294,8 @@ export default async function Home({
                   <strong>{report.siteCount}</strong><p>SharePoint sites</p><small>{report.libraryCount} document libraries</small>
                 </article>
                 <article className="metric-card">
-                  <div className="metric-top"><span className="metric-icon neutral">✓</span><span className="subtle">CACHE</span></div>
-                  <strong className="date-value">{formatDate(report.lastSuccessfulScan).split(" ").slice(0, 3).join(" ")}</strong><p>Last successful scan</p><small>Next: {formatDate(report.nextScheduledScan)}</small>
+                  <div className="metric-top"><span className="metric-icon neutral">◷</span><span className="subtle">SCHEDULED CACHE</span></div>
+                  <strong className="date-value">{formatDate(report.lastSuccessfulScan).split(" ").slice(0, 3).join(" ")}</strong><p>Last scheduled scan</p><small>Next: {formatDate(report.nextScheduledScan)}</small>
                 </article>
                 <article className="metric-card">
                   <div className="metric-top"><span className="metric-icon warning">△</span><span className="subtle">OUTCOMES</span></div>
@@ -284,24 +312,24 @@ export default async function Home({
                 <>
                   <section className="insight-grid">
                     <article className="panel scope-explorer" id="hierarchy">
-                      <div className="panel-heading"><div><p className="eyebrow">BUSINESS SCOPE</p><h2>Scope navigator</h2><p>เปิดดูทีละระดับแทนการแสดง {report.visibleNodeIds.length.toLocaleString("en-US")} nodes พร้อมกัน</p></div><span className="panel-kicker">{scopeSiteCount.toLocaleString("en-US")} sites</span></div>
+                      <div className="panel-heading"><div><p className="eyebrow">COMPANY HIERARCHY</p><h2>Business visibility</h2><p>โครงสร้างบริษัทกำหนดสิทธิ์การมองเห็น ไม่ใช่ลำดับของ SharePoint Site</p></div><span className="panel-kicker">{report.visibleNodeIds.length.toLocaleString("en-US")} roles</span></div>
                       <div className="scope-toolbar">
                         <nav className="scope-breadcrumb" aria-label="ตำแหน่งปัจจุบันใน hierarchy">
-                          {activeScope && assignedRoots.length > 1 ? <a href={makeHref(params, { scope: undefined, node: undefined, site: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })}>Assigned scope</a> : null}
+                          {activeScope && assignedRoots.length > 1 ? <a href={makeHref(params, { scope: undefined, node: undefined, site: undefined, siteQ: undefined, sitePage: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })}>Assigned scope</a> : null}
                           {scopeBreadcrumb.map((node, index) => (
                             <span key={node.nodeId}>
                               {index > 0 || assignedRoots.length > 1 ? <i aria-hidden="true">/</i> : null}
-                              {index === scopeBreadcrumb.length - 1 ? <strong aria-current="page">{node.name}</strong> : <a href={makeHref(params, { scope: node.nodeId, node: node.nodeId, site: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })}>{node.name}</a>}
+                              {index === scopeBreadcrumb.length - 1 ? <strong aria-current="page">{node.name}</strong> : <a href={makeHref(params, { scope: node.nodeId, node: node.nodeId, site: undefined, siteQ: undefined, sitePage: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })}>{node.name}</a>}
                             </span>
                           ))}
                           {!activeScope ? <strong aria-current="page">Assigned scope</strong> : null}
                         </nav>
                         <form className="scope-search" method="get" action="/#hierarchy" role="search">
-                          {Object.entries(params).filter(([name]) => !["scopeQ", "scopePage", "page"].includes(name)).map(([name, raw]) => {
+                          {Object.entries(params).filter(([name]) => !["site", "siteQ", "sitePage", "scopeQ", "scopePage", "page"].includes(name)).map(([name, raw]) => {
                             const value = getSingle(raw);
                             return value ? <input key={name} type="hidden" name={name} value={value} /> : null;
                           })}
-                          <label><span aria-hidden="true">⌕</span><input name="scopeQ" defaultValue={scopeSearch} placeholder="ค้นหา branch หรือ site" aria-label="ค้นหา hierarchy branch หรือ site" /></label>
+                          <label><span aria-hidden="true">⌕</span><input name="scopeQ" defaultValue={scopeSearch} placeholder="ค้นหาตำแหน่งหรือหน่วยงาน" aria-label="ค้นหา business hierarchy" /></label>
                           <button className="button scope-search-button" type="submit">ค้นหา</button>
                           {scopeSearch ? <a className="scope-search-clear" href={makeHref(params, { scopeQ: undefined, scopePage: undefined })}>ล้าง</a> : null}
                         </form>
@@ -309,10 +337,10 @@ export default async function Home({
 
                       <div className="scope-current">
                         <span className={`scope-current-mark type-${(activeScope?.type ?? "scope").toLowerCase()}`} aria-hidden="true">{activeScope?.type.slice(0, 1) ?? "S"}</span>
-                        <div className="scope-current-copy"><small>{activeScope?.type ?? "AUTHORIZED SCOPE"}</small><h3>{activeScope?.name ?? "My assigned scope"}</h3><p>เลือก branch ด้านล่างเพื่อกรอง report และลงไปยังระดับถัดไป</p></div>
+                        <div className="scope-current-copy"><small>{activeScope?.type ?? "AUTHORIZED BUSINESS SCOPE"}</small><h3>{activeScope?.name ?? "My assigned scope"}</h3><p>ตำแหน่งนี้ให้สิทธิ์เห็น Sites ที่ map กับหน่วยงานนี้และ descendants</p></div>
                         <dl>
                           <div><dt>SECRET FILES</dt><dd>{scopeSecretCount.toLocaleString("en-US")}</dd></div>
-                          <div><dt>SITES</dt><dd>{scopeSiteCount.toLocaleString("en-US")}</dd></div>
+                          <div><dt>VISIBLE SITES</dt><dd>{scopeSiteCount.toLocaleString("en-US")}</dd></div>
                           <div><dt>NEXT LEVEL</dt><dd>{nextLevelNodes.length.toLocaleString("en-US")}</dd></div>
                         </dl>
                       </div>
@@ -323,35 +351,42 @@ export default async function Home({
                       </div>
                       <div className="scope-list">
                         {visibleScopeNodes.map((node) => (
-                          <a className="scope-row" href={makeHref(params, { scope: node.nodeId, node: node.nodeId, site: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })} key={node.nodeId}>
+                          <a className="scope-row" href={makeHref(params, { scope: node.nodeId, node: node.nodeId, site: undefined, siteQ: undefined, sitePage: undefined, scopeQ: undefined, scopePage: undefined, page: undefined })} key={node.nodeId}>
                             <span className={`node-mark type-${node.type.toLowerCase()}`}>{node.type.slice(0, 1)}</span>
-                            <span className="scope-row-copy"><strong>{node.name}</strong><small>{node.type} · {node.siteCount.toLocaleString("en-US")} sites · {node.childCount.toLocaleString("en-US")} sub-scopes</small></span>
+                            <span className="scope-row-copy"><strong>{node.name}</strong><small>{node.type} · {node.childCount.toLocaleString("en-US")} sub-scopes · {node.siteCount.toLocaleString("en-US")} visible sites</small></span>
                             <span className="scope-row-count"><strong>{node.count.toLocaleString("en-US")}</strong><small>Secret</small></span>
                             <span className="scope-row-arrow" aria-hidden="true">→</span>
                           </a>
                         ))}
-                        {visibleScopeNodes.length === 0 ? <div className="scope-no-results"><strong>{scopeSearch ? "ไม่พบ branch หรือ site ที่ค้นหา" : "ถึงระดับปลายสุดของ scope แล้ว"}</strong><p>{scopeSearch ? "ลองค้นหาด้วยชื่อ Department, Group, Project หรือ site อื่น" : "ไฟล์และ site ภายใน scope นี้แสดงในส่วน report ด้านล่าง"}</p></div> : null}
+                        {visibleScopeNodes.length === 0 ? <div className="scope-no-results"><strong>{scopeSearch ? "ไม่พบตำแหน่งหรือหน่วยงานที่ค้นหา" : "ถึงระดับปลายสุดของ business scope แล้ว"}</strong><p>{scopeSearch ? "ลองค้นหาด้วยชื่อ Department, Group หรือ Project อื่น" : "SharePoint Sites ที่มองเห็นได้แสดงแยกใน Site Explorer"}</p></div> : null}
                       </div>
                       {scopePageCount > 1 ? <div className="scope-pagination"><span>หน้า {scopePage} จาก {scopePageCount}</span><div><a className={scopePage <= 1 ? "disabled" : ""} aria-disabled={scopePage <= 1} href={makeHref(params, { scopePage: String(Math.max(scopePage - 1, 1)) })}>← ก่อนหน้า</a><a className={scopePage >= scopePageCount ? "disabled" : ""} aria-disabled={scopePage >= scopePageCount} href={makeHref(params, { scopePage: String(Math.min(scopePage + 1, scopePageCount)) })}>ถัดไป →</a></div></div> : null}
                     </article>
 
-                    <article className="panel">
-                      <div className="panel-heading"><div><p className="eyebrow">CONCENTRATION</p><h2>Exposure by site</h2></div><span className="panel-kicker">Filtered view</span></div>
-                      <div className="bar-list">
-                        {report.siteRollups.map((site) => {
-                          const max = Math.max(...report.siteRollups.map((item) => item.count), 1);
-                          return <a href={makeHref(params, { site: site.siteId, page: undefined })} className="bar-row" key={site.siteId}>
-                            <span className="bar-copy"><strong>{site.siteName}</strong><small>{site.siteId}</small></span>
-                            <span className="bar-track"><i style={{ width: `${Math.max((site.count / max) * 100, 8)}%` }} /></span>
-                            <b>{site.count}</b>
-                          </a>;
+                    <article className="panel site-explorer" id="sites">
+                      <div className="panel-heading"><div><p className="eyebrow">FLAT SHAREPOINT INVENTORY</p><h2>Site explorer</h2><p>ค้นหา Site ที่ business scope ปัจจุบันอนุญาตให้มองเห็น</p></div><span className="panel-kicker">{report.siteRollups.length.toLocaleString("en-US")} visible</span></div>
+                      <form className="site-search" method="get" action="/#sites" role="search">
+                        {Object.entries(params).filter(([name]) => !["site", "siteQ", "sitePage", "page"].includes(name)).map(([name, raw]) => {
+                          const value = getSingle(raw);
+                          return value ? <input key={name} type="hidden" name={name} value={value} /> : null;
                         })}
-                        {report.siteRollups.length === 0 ? <p className="muted-message">ไม่มี site ที่ตรงกับ filters ปัจจุบัน</p> : null}
+                        <label><span aria-hidden="true">⌕</span><input name="siteQ" defaultValue={siteSearch} placeholder="ค้นหาชื่อ Site, Site ID หรือหน่วยงาน" aria-label="ค้นหา SharePoint Site" /></label>
+                        <button className="button site-search-button" type="submit">ค้นหา</button>
+                        {siteSearch ? <a className="site-search-clear" href={makeHref(params, { siteQ: undefined, sitePage: undefined })}>ล้าง</a> : null}
+                      </form>
+                      <div className="site-list" aria-label="SharePoint Sites ที่มองเห็นได้">
+                        {visibleSites.map((site) => (
+                          <a className={`site-row ${getSingle(params.site) === site.siteId ? "selected" : ""}`} href={makeHref(params, { site: site.siteId, siteQ: undefined, sitePage: undefined, page: undefined })} key={site.siteId}>
+                            <span className="site-mark" aria-hidden="true">SP</span>
+                            <span className="site-copy"><strong>{site.siteName}</strong><small>{site.nodeName} · {site.siteId}</small></span>
+                            <span className={`site-scan-state scan-${site.scanState}`}>{siteScanLabels[site.scanState]}</span>
+                            <span className="site-count"><strong>{site.count.toLocaleString("en-US")}</strong><small>Secret</small></span>
+                          </a>
+                        ))}
+                        {visibleSites.length === 0 ? <div className="scope-no-results"><strong>ไม่พบ SharePoint Site ที่ค้นหา</strong><p>ลองค้นหาด้วยชื่อ Site, Site ID หรือชื่อหน่วยงานอื่น</p></div> : null}
                       </div>
-                      <div className="library-summary">
-                        <span>TOP LIBRARIES</span>
-                        {report.libraryRollups.slice(0, 4).map((library) => <div key={`${library.siteId}:${library.libraryName}`}><strong>{library.libraryName}</strong><small>{library.siteName}</small><b>{library.count}</b></div>)}
-                      </div>
+                      {sitePageCount > 1 ? <div className="scope-pagination"><span>หน้า {sitePage} จาก {sitePageCount}</span><div><a className={sitePage <= 1 ? "disabled" : ""} aria-disabled={sitePage <= 1} href={makeHref(params, { sitePage: String(Math.max(sitePage - 1, 1)) })}>← ก่อนหน้า</a><a className={sitePage >= sitePageCount ? "disabled" : ""} aria-disabled={sitePage >= sitePageCount} href={makeHref(params, { sitePage: String(Math.min(sitePage + 1, sitePageCount)) })}>ถัดไป →</a></div></div> : null}
+                      <div className="site-explorer-footnote"><span>Site inventory ไม่มี hierarchy ใน SharePoint</span><strong>Visibility มาจาก business mapping</strong></div>
                     </article>
                   </section>
 
@@ -361,7 +396,10 @@ export default async function Home({
                       {Object.entries(preserved).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
                       <label className="search-field"><span aria-hidden="true">⌕</span><input name="q" defaultValue={getSingle(params.q)} placeholder="ค้นหาชื่อไฟล์หรือ path" aria-label="ค้นหาชื่อไฟล์หรือ path" /></label>
                       <label><span className="sr-only">Hierarchy node</span><select name="node" defaultValue={getSingle(params.node) ?? ""}><option value="">ทุก hierarchy node</option>{report.options.nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
-                      <label><span className="sr-only">Site</span><select name="site" defaultValue={getSingle(params.site) ?? ""}><option value="">ทุก site</option>{report.options.sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label>
+                      <div className="site-filter-control" role="group" aria-label="Site filter">
+                        {selectedSite ? <input type="hidden" name="site" value={selectedSite.id} /> : null}
+                        <span>SITE</span><strong>{selectedSite?.name ?? "ทุก Site ใน scope"}</strong><a href={selectedSite ? makeHref(params, { site: undefined, page: undefined }) : "#sites"}>{selectedSite ? "ล้าง" : "เลือก"}</a>
+                      </div>
                       <label><span className="sr-only">Library</span><select name="library" defaultValue={getSingle(params.library) ?? ""}><option value="">ทุก library</option>{report.options.libraries.map((library) => <option key={library} value={library}>{library}</option>)}</select></label>
                       <label><span className="sr-only">Scan status</span><select name="status" defaultValue={getSingle(params.status) ?? ""}><option value="">ทุก status</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
                       <label><span className="sr-only">Freshness</span><select name="freshness" defaultValue={getSingle(params.freshness) ?? ""}><option value="">ทุก freshness</option><option value="current">Current ≤ 24h</option><option value="stale">Stale &gt; 24h</option></select></label>
@@ -394,11 +432,11 @@ export default async function Home({
               )}
 
               <section className="panel scan-panel" id="scan-status">
-                <div className="panel-heading"><div><p className="eyebrow">CACHED DATA HEALTH</p><h2>Latest scan run</h2></div><span className={`run-status run-${report.latestRun?.status ?? "unknown"}`}>{report.latestRun?.status ?? "unknown"}</span></div>
+                <div className="panel-heading"><div><p className="eyebrow">SCHEDULED CACHE HEALTH</p><h2>Latest scheduled scan</h2><p>Scanner ทำงานตามรอบและเขียน inventory ล่วงหน้า หน้า Report ไม่เรียก Microsoft Graph</p></div><span className={`run-status run-${report.latestRun?.status ?? "unknown"}`}>{report.latestRun?.status ?? "unknown"}</span></div>
                 <div className="run-grid">
                   <div><small>RUN ID</small><strong>{report.latestRun?.id ?? "—"}</strong></div><div><small>TRIGGER</small><strong>{report.latestRun?.trigger ?? "—"}</strong></div><div><small>SCANNED</small><strong>{report.latestRun?.scannedCount ?? 0}</strong></div><div><small>CHANGED</small><strong>{report.latestRun?.changedCount ?? 0}</strong></div><div><small>LOCKED</small><strong>{report.latestRun?.lockedCount ?? 0}</strong></div><div><small>FAILED</small><strong>{report.latestRun?.failedCount ?? 0}</strong></div>
                 </div>
-                <p className="scan-footnote">Report requests อ่าน cache เท่านั้น · Scanner identity และ app-only token แยกจาก Web App · Run now จะตอบ queued job โดยไม่รอ scan เสร็จ</p>
+                <p className="scan-footnote">Nightly incremental + controlled reconciliation · Site หนึ่งถูก scan ครั้งเดียวต่อรอบ ไม่ scan ซ้ำตาม EVP หรือผู้ใช้ · Run now สร้าง queued job เท่านั้น</p>
               </section>
             </>
           ) : null}

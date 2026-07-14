@@ -2,8 +2,10 @@ import type { DeltaState } from "../domain/types";
 import {
   hierarchyAssignments,
   hierarchyNodes,
+  hierarchySiteMappings,
   inventoryItems,
   scanRuns,
+  sharePointSites,
 } from "../fixtures/data";
 import type {
   DeltaStateStore,
@@ -19,6 +21,14 @@ export class FixtureHierarchyStore implements HierarchyStore {
 
   async getAssignments() {
     return structuredClone(hierarchyAssignments);
+  }
+
+  async getSites() {
+    return structuredClone(sharePointSites);
+  }
+
+  async getSiteMappings() {
+    return structuredClone(hierarchySiteMappings);
   }
 }
 

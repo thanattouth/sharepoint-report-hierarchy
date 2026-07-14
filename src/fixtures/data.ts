@@ -1,6 +1,8 @@
 import type {
+  GovernedSharePointSite,
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
+  GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
 } from "../domain/types";
@@ -30,11 +32,6 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Project",
     name: "Project Aurora",
     active: true,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/project-aurora",
-      siteId: "site-aurora",
-    },
   },
   {
     id: "project-nova",
@@ -42,11 +39,6 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Project",
     name: "Project Nova",
     active: true,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/project-nova",
-      siteId: "site-nova",
-    },
   },
   {
     id: "group-consumer",
@@ -54,11 +46,6 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Group",
     name: "Consumer Markets",
     active: true,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/consumer-markets",
-      siteId: "site-consumer",
-    },
   },
   {
     id: "dept-operations",
@@ -80,11 +67,6 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Project",
     name: "Project Ledger",
     active: true,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/project-ledger",
-      siteId: "site-ledger",
-    },
   },
   {
     id: "project-supply",
@@ -92,11 +74,6 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Project",
     name: "Supply Excellence",
     active: true,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/supply-excellence",
-      siteId: "site-supply",
-    },
   },
   {
     id: "project-archived",
@@ -104,12 +81,27 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     type: "Project",
     name: "Archived Transformation",
     active: false,
-    site: {
-      hostname: "contoso.sharepoint.com",
-      path: "/sites/archived-transformation",
-      siteId: "site-archived",
-    },
   },
+];
+
+export const sharePointSites: GovernedSharePointSite[] = [
+  { id: "site-commercial-hub", name: "Commercial Leadership Hub", hostname: "contoso.sharepoint.com", path: "/sites/commercial-leadership", active: true, scanEnabled: true },
+  { id: "site-aurora", name: "Project Aurora", hostname: "contoso.sharepoint.com", path: "/sites/project-aurora", active: true, scanEnabled: true },
+  { id: "site-nova", name: "Project Nova", hostname: "contoso.sharepoint.com", path: "/sites/project-nova", active: true, scanEnabled: true },
+  { id: "site-consumer", name: "Consumer Markets", hostname: "contoso.sharepoint.com", path: "/sites/consumer-markets", active: true, scanEnabled: true },
+  { id: "site-ledger", name: "Project Ledger", hostname: "contoso.sharepoint.com", path: "/sites/project-ledger", active: true, scanEnabled: true },
+  { id: "site-supply", name: "Supply Excellence", hostname: "contoso.sharepoint.com", path: "/sites/supply-excellence", active: true, scanEnabled: true },
+  { id: "site-archived", name: "Archived Transformation", hostname: "contoso.sharepoint.com", path: "/sites/archived-transformation", active: false, scanEnabled: false },
+];
+
+export const hierarchySiteMappings: GovernanceHierarchySiteMapping[] = [
+  { nodeId: "dept-commercial", siteId: "site-commercial-hub", active: true },
+  { nodeId: "project-aurora", siteId: "site-aurora", active: true },
+  { nodeId: "project-nova", siteId: "site-nova", active: true },
+  { nodeId: "group-consumer", siteId: "site-consumer", active: true },
+  { nodeId: "project-ledger", siteId: "site-ledger", active: true },
+  { nodeId: "project-supply", siteId: "site-supply", active: true },
+  { nodeId: "project-archived", siteId: "site-archived", active: false },
 ];
 
 export const hierarchyAssignments: GovernanceHierarchyAssignment[] = [

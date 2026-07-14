@@ -14,6 +14,7 @@ Read these files completely before changing the product:
 1. `../../REQUIREMENTS.md` — product and security source of truth.
 2. `../../DESIGN.md` — Genesis visual source of truth.
 3. `../../docs/adr/0001-separate-web-and-scanner-identities.md` — identity boundary.
+4. `../../docs/adr/0002-separate-business-hierarchy-from-sharepoint-sites.md` — scope/site boundary.
 
 Then inspect only the implementation files relevant to the request. Do not infer current completion from this skill; verify it from code, tests, and git state.
 
@@ -34,7 +35,7 @@ Keep work inside the current category unless the user explicitly expands scope.
 Enforce all of these on every change:
 
 - Separate capability from data scope. A role never grants all-site visibility by itself.
-- Resolve allowed site IDs from signed-in UPN, active assignments, active nodes, and `includeDescendants`.
+- Resolve allowed site IDs from signed-in UPN, active assignments, active business nodes, `includeDescendants`, and active hierarchy-to-site mappings.
 - Filter aggregates, file rows, detail views, and exports on the server before returning data.
 - Fail closed when hierarchy, assignment, or scope resolution is unavailable or ambiguous.
 - Return no inventory for users without an active assignment.
@@ -50,11 +51,13 @@ Enforce all of these on every change:
 ## Follow implementation boundaries
 
 - Keep domain logic pure and testable under `src/domain` and `src/report`.
+- Keep company hierarchy nodes, flat SharePoint Site records, and hierarchy-to-site mappings as separate contracts. Never embed a Site as a hierarchy child or node field.
 - Access fixtures only behind store/data-access contracts. UI components must not import fixture data directly.
 - Extend `InventoryStore`, `HierarchyStore`, `ScanRunStore`, `DeltaStateStore`, and `SensitivityScanner` rather than coupling UI to storage or Graph.
 - Upsert scanner results idempotently by stable file identity.
 - Treat `locked`, `unsupported`, `throttled`, and `failed` as item outcomes; do not fail an entire run automatically.
 - Queue Run now and return immediately. Never hold a browser request until scanning completes.
+- Read active `scanEnabled` Sites for scheduled work independently of report users. Scan each Site once per run and apply business mappings only when authorizing cached report reads.
 - Preserve unrelated user changes in the worktree.
 
 ## Apply Genesis design
@@ -72,16 +75,18 @@ Use the business-first editorial system in `../../DESIGN.md`:
 - Avoid decorative gradients, illustrations, playful card-game motifs, offset shadows, excess rounding, and static indigo decoration.
 - Preserve keyboard navigation, accessible labels, focus rings, table semantics, and responsive layouts.
 
-### Scale hierarchy navigation
+### Scale scope and Site navigation
 
-- Never render every visible hierarchy node as one expanded tree; EVP scopes may contain thousands of sites.
+- Treat EVP, Department, Group, and Project as customer business scopes, not SharePoint hierarchy levels.
+- Never render flat SharePoint Sites as an expanded hierarchy tree; EVP scopes may contain thousands of Sites.
 - Default to the assigned root or roots and show only the current node's immediate children.
 - Use breadcrumbs for upward navigation and selecting a child to update the server-side hierarchy filter.
-- Provide descendant search and paginate node results when one level can exceed the panel capacity.
+- Provide a separate searchable, paginated Site Explorer for flat Sites mapped into the resolved scope.
+- Provide descendant search and paginate business nodes when one level can exceed the panel capacity.
 - Show each branch's distinct Secret count, descendant-site count, and direct-child count so users can choose where to drill next.
 - Derive navigation only from server-authorized rollups. Ignore or reject requested scope IDs outside `visibleNodeIds` and never use navigation state to broaden data scope.
 - Clear incompatible site and page filters when changing branch, while preserving relevant file filters.
-- Test root, branch, leaf, search, multi-assignment, and large-sibling navigation behavior without loading all nodes into the browser view.
+- Test root, branch, leaf, Site mapping, Site search, multi-assignment, and large-scope navigation without loading all nodes or Sites into the browser view.
 
 For website work, also follow the available Sites building and hosting skills because `.openai/hosting.json` is present.
 

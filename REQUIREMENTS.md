@@ -19,6 +19,7 @@ Intended destination: **New standalone repository and new Codex thread**
 
 - เป็นแอปใหม่สำหรับรายงานอย่างเดียว ไม่รวมอยู่ในหน้า Reviewer ของระบบเดิม
 - ผู้ใช้แต่ละคนเห็นข้อมูลตาม hierarchy ที่ถูก assign ด้วย UPN
+- SharePoint sites เป็น flat inventory แยกจาก hierarchy ของบริษัท และเชื่อมกันผ่าน explicit mapping
 - EVP เห็นทุก site ใต้ node ของตน
 - Department/Group/Project เห็นเฉพาะ branch ของตนและ descendants ที่ได้รับอนุญาต
 - แสดงจำนวน Secret files ในแต่ละระดับ hierarchy, site และ document library
@@ -119,7 +120,8 @@ Signed-in UPN
 -> active assignments
 -> assigned node(s)
 -> include descendants เมื่อกำหนดไว้
--> distinct site references
+-> active hierarchy-to-site mappings
+-> distinct allowed site IDs
 -> cached inventory filtered to allowed sites
 ```
 
@@ -133,32 +135,48 @@ Default organization model:
 EVP
 ├── Department A
 │   ├── Group A1
-│   │   ├── Project A1-1 -> SharePoint Site 1
-│   │   └── Project A1-2 -> SharePoint Site 2
-│   └── Group A2 -> SharePoint Site 3
+│   │   ├── Project A1-1
+│   │   └── Project A1-2
+│   └── Group A2
 └── Department B
-    └── Project B1 -> SharePoint Site 4
+    └── Project B1
 ```
 
-ทุก node คือขอบเขตทางธุรกิจ และ node สามารถอ้างอิง SharePoint site ได้ ระดับจริงอาจเปลี่ยนชื่อได้ตามโครงสร้างลูกค้า แต่ prototype ต้องรองรับอย่างน้อย:
+Hierarchy นี้คือโครงสร้างตำแหน่ง/หน่วยงานของบริษัทลูกค้า ไม่ใช่โครงสร้างของ SharePoint ทุก node เป็นขอบเขตทางธุรกิจเท่านั้น ระดับจริงอาจเปลี่ยนชื่อได้ตามโครงสร้างลูกค้า แต่ prototype ต้องรองรับอย่างน้อย:
 
 - EVP
 - Department
 - Group
 - Project
 
-### 6.1 Expected visibility
+### 6.1 SharePoint Site mapping
+
+SharePoint sites เป็นรายการแบบ flat และต้องเก็บแยกจาก hierarchy node:
+
+```text
+Business hierarchy node(s)
+        ↓ explicit mapping
+Flat SharePoint Site inventory
+```
+
+- หนึ่ง hierarchy node map ได้ 0–หลาย sites
+- Site หนึ่งควรมี canonical active placement เดียวใน prototype
+- Site record ต้องมี Site ID, display name, hostname/path, active state และ scheduled-scan state
+- การย้าย Site ระหว่างหน่วยงานคือการแก้ mapping ไม่ใช่การแก้ parent/child ของ Site
+- Hierarchy traversal ให้ visible node IDs ก่อน แล้วจึง resolve allowed site IDs ผ่าน mapping
+
+### 6.2 Expected visibility
 
 | Assignment | Scope ที่ต้องเห็น |
 | --- | --- |
 | EVP ที่ root | ทุก active site ใต้ root |
 | Department Head | ทุก site ใน Department branch ของตน |
 | Group Manager | ทุก site ใน Group branch ของตน |
-| Project Owner | Project site ของตนเท่านั้น เว้นแต่มี assignment เพิ่ม |
+| Project Owner | Sites ที่ map กับ Project node ของตนเท่านั้น เว้นแต่มี assignment เพิ่ม |
 | หลาย assignments | Union ของทุก allowed site โดยไม่ซ้ำ |
 | ไม่มี assignment | ไม่เห็น inventory |
 
-### 6.2 Hierarchy validation
+### 6.3 Hierarchy และ Site mapping validation
 
 ระบบต้องตรวจและปฏิเสธ configuration ที่มี:
 
@@ -168,6 +186,10 @@ EVP
 - Node ที่อ้างตัวเองเป็น parent
 - Invalid hostname/path
 - Assignment ที่อ้าง node ไม่มีอยู่
+- Duplicate Site IDs
+- Site hostname/path ไม่ถูกต้อง
+- Mapping ที่อ้าง node หรือ Site ไม่มีอยู่
+- Duplicate mapping หรือ Site มีหลาย active canonical placements
 - UPN ว่างหรือรูปแบบไม่ถูกต้อง
 
 Inactive node หรือ inactive assignment ต้องไม่เพิ่ม scope
@@ -268,7 +290,7 @@ tenantId + siteId + driveId + itemId
 - หนึ่งไฟล์นับครั้งเดียวต่อ aggregate แม้ API ส่งหลาย labels
 - หากไฟล์มี label ใดที่อยู่ใน configured Secret label IDs ให้นับเป็น Secret หนึ่งไฟล์
 - ห้ามพึ่ง label display name เพียงอย่างเดียว เพราะชื่อสามารถเปลี่ยนได้
-- แต่ละ site ควรมี canonical hierarchy placement หนึ่งตำแหน่ง
+- แต่ละ Site ควรมี canonical active hierarchy-to-site mapping หนึ่งตำแหน่ง
 - หากธุรกิจต้องวาง site เดียวในหลาย nodes ต้อง deduplicate ด้วย stable file key
 - จำนวนที่แสดงต้อง reconcile กับ file-detail rows สำหรับ scope และ filters เดียวกัน
 
@@ -292,6 +314,8 @@ Report request ห้าม enumerate files หรือเรียก `extract
 
 หลัง baseline ให้ใช้ incremental/delta processing เพื่อตรวจไฟล์ใหม่ เปลี่ยนแปลง ย้าย หรือลบ
 
+Schedule ต้องอ่าน active `scanEnabled` sites จาก flat Site inventory โดยไม่ขึ้นกับผู้ใช้ที่เปิด Report หรือ business role ที่ login อยู่
+
 Recommended starting cadence ซึ่งต้องยืนยันกับลูกค้า:
 
 - Nightly incremental scan นอก peak hours
@@ -300,6 +324,8 @@ Recommended starting cadence ซึ่งต้องยืนยันกับ
 ### SCAN-004: Shared inventory
 
 Site/file หนึ่งชุด scan ครั้งเดียวต่อรอบ ไม่ scan ซ้ำตาม EVP/Department/Group/Project หรือผู้ใช้แต่ละคน
+
+Hierarchy-to-site mapping ใช้ตอนอ่าน Report เท่านั้น ห้ามนำจำนวน hierarchy assignments ไปคูณจำนวน scan jobs
 
 ### SCAN-005: Run now
 
@@ -384,7 +410,8 @@ Scheduled Scanner Worker
 Stores
 ├── Hierarchy nodes
 ├── User assignments
-├── Site configuration
+├── Flat SharePoint Site inventory
+├── Hierarchy-to-site mappings
 ├── Sensitivity inventory
 ├── Scan runs
 └── Per-drive delta/cursor state
@@ -419,16 +446,30 @@ type GovernanceHierarchyNode = {
   parentId?: string;
   type: "EVP" | "Department" | "Group" | "Project";
   name: string;
-  site?: {
-    hostname: string;
-    path: string;
-    siteId?: string;
-  };
   active: boolean;
 };
 ```
 
-### 11.2 User assignment
+### 11.2 Flat SharePoint Site และ mapping
+
+```ts
+type GovernedSharePointSite = {
+  id: string;
+  name: string;
+  hostname: string;
+  path: string;
+  active: boolean;
+  scanEnabled: boolean;
+};
+
+type GovernanceHierarchySiteMapping = {
+  nodeId: string;
+  siteId: string;
+  active: boolean;
+};
+```
+
+### 11.3 User assignment
 
 ```ts
 type GovernanceHierarchyAssignment = {
@@ -445,7 +486,7 @@ type GovernanceHierarchyAssignment = {
 };
 ```
 
-### 11.3 Sensitivity inventory item
+### 11.4 Sensitivity inventory item
 
 ```ts
 type SensitivityInventoryItem = {
@@ -481,7 +522,7 @@ type SensitivityInventoryItem = {
 };
 ```
 
-### 11.4 Scan run
+### 11.5 Scan run
 
 ```ts
 type SensitivityScanRun = {
@@ -574,6 +615,8 @@ Export ต้องมี capability check, scope filtering และ audit even
 
 File-level report ต้องใช้ server-side pagination ห้ามโหลด inventory ทั้งหมดเข้า browser
 
+Site Explorer ต้องค้นหาและ paginate flat Site inventory ตาม resolved scope ห้าม render Sites หลักร้อยหรือหลักพันเป็น expanded hierarchy tree
+
 ### NFR-003: Reliability
 
 Partial scan ต้องแสดงเป็น partial ห้ามรายงานว่า complete
@@ -618,6 +661,7 @@ Exit gate:
 - Implement hierarchy types/validation
 - Implement descendant traversal
 - Implement UPN assignment resolution
+- Implement flat SharePoint Site records และ hierarchy-to-site mappings แยกจาก hierarchy nodes
 - Implement Secret label ID configuration
 - Implement aggregate calculation and deduplication
 - สร้าง fixture อย่างน้อย 1 EVP, 2 Departments, หลาย Groups/Projects และ 5 users
@@ -673,6 +717,7 @@ Exit gate:
 Customer/team must approve:
 
 - Hierarchy naming and sample tree
+- ตัวอย่าง Site inventory และ canonical mapping จาก business nodes ไปยัง Sites
 - Which label IDs mean Secret
 - File columns and direct-link behavior
 - Schedule cadence
@@ -713,7 +758,7 @@ Exit gate:
 | UAT-01 | EVP login | เห็น Secret totals และ files จากทุก descendant site |
 | UAT-02 | Department login | ไม่เห็น sibling department |
 | UAT-03 | Group login | เห็นเฉพาะ group branch |
-| UAT-04 | Project login | เห็นเฉพาะ project site |
+| UAT-04 | Project login | เห็นเฉพาะ Sites ที่ map กับ Project node |
 | UAT-05 | No assignment | ไม่เห็น inventory |
 | UAT-06 | Filter by site/library | Count และ file rows reconcile |
 | UAT-07 | Search file name | คืนเฉพาะ in-scope matching files |
@@ -766,7 +811,7 @@ Exit gate:
 ### Open decisions
 
 - ชื่อ hierarchy levels จริงของลูกค้า
-- Node ใดมี SharePoint site โดยตรง
+- Business node ใด map กับ SharePoint Sites ใด และใครเป็นเจ้าของ mapping
 - Secret label IDs ที่ production ใช้
 - แสดงเฉพาะ Secret หรือรองรับ Confidential ด้วย
 - Nightly schedule เวลาใดและ timezone ใด
@@ -837,5 +882,4 @@ sharepoint-sensitivity-report/
 
 ## 22. Final Summary
 
-ระบบใหม่คือ read-only governance report app สำหรับ Secret-file inventory แบบ hierarchy-scoped ข้อมูลมาจาก scheduled cached scan ไม่ใช่ real time ผู้บริหารเห็นยอดรวมทุกระดับและ drill down ถึงชื่อไฟล์ได้ตาม branch ของตน ขณะที่ scanner identity, report identity, storage และ deployment แยกจาก permission-management app เดิมอย่างชัดเจน
-
+ระบบใหม่คือ read-only governance report app สำหรับ Secret-file inventory แบบ hierarchy-scoped โดย business hierarchy และ flat SharePoint Site inventory เป็นคนละโมเดลและเชื่อมกันผ่าน explicit mapping ข้อมูลมาจาก scheduled cached scan ไม่ใช่ real time ผู้บริหารเห็นยอดรวมทุกระดับและ drill down ถึง Sites/ชื่อไฟล์ที่ mapping อนุญาต ขณะที่ scanner identity, report identity, storage และ deployment แยกจาก permission-management app เดิมอย่างชัดเจน

@@ -5,11 +5,21 @@ export type GovernanceHierarchyNode = {
   parentId?: string;
   type: HierarchyNodeType;
   name: string;
-  site?: {
-    hostname: string;
-    path: string;
-    siteId?: string;
-  };
+  active: boolean;
+};
+
+export type GovernedSharePointSite = {
+  id: string;
+  name: string;
+  hostname: string;
+  path: string;
+  active: boolean;
+  scanEnabled: boolean;
+};
+
+export type GovernanceHierarchySiteMapping = {
+  nodeId: string;
+  siteId: string;
   active: boolean;
 };
 

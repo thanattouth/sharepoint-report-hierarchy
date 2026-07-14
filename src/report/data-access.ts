@@ -57,21 +57,18 @@ export function parseReportRequest(params: RawSearchParams) {
 export async function loadReportPage(params: RawSearchParams): Promise<ReportData> {
   const request = parseReportRequest(params);
   if (request.scenario === "cache-error") throw new Error("Fixture cache unavailable");
-  const [nodes, assignments, inventory, runs] = await Promise.all([
+  const [nodes, assignments, sites, siteMappings, runs] = await Promise.all([
     hierarchyStore.getNodes(),
     hierarchyStore.getAssignments(),
-    inventoryStore.listCurrentBySiteIds([
-      "site-aurora",
-      "site-nova",
-      "site-consumer",
-      "site-ledger",
-      "site-supply",
-      "site-archived",
-    ]),
+    hierarchyStore.getSites(),
+    hierarchyStore.getSiteMappings(),
     scanRunStore.listRecent(),
   ]);
+  const inventory = await inventoryStore.listCurrentBySiteIds(
+    sites.filter((site) => site.active).map((site) => site.id),
+  );
   return buildReport(
-    { nodes, assignments, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
+    { nodes, assignments, sites, siteMappings, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
     request,
   );
 }
@@ -86,14 +83,16 @@ export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
     throw new ReportAuthorizationError("Export requires ReportAdmin");
   }
   const report = await loadReportPage({ ...params, page: "1" });
-  const [nodes, assignments, inventory, runs] = await Promise.all([
+  const [nodes, assignments, sites, siteMappings, inventory, runs] = await Promise.all([
     hierarchyStore.getNodes(),
     hierarchyStore.getAssignments(),
+    hierarchyStore.getSites(),
+    hierarchyStore.getSiteMappings(),
     inventoryStore.listCurrentBySiteIds(report.allowedSiteIds),
     scanRunStore.listRecent(),
   ]);
   const fullReport = buildReport(
-    { nodes, assignments, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
+    { nodes, assignments, sites, siteMappings, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
     { ...request, filters: { ...request.filters, page: 1, pageSize: 50 } },
   );
   const header = [

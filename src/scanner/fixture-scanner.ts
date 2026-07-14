@@ -1,7 +1,11 @@
 import { resolveHierarchyScope } from "../domain/hierarchy";
 import type { AppCapability, SensitivityScanRun } from "../domain/types";
 import { FixtureHierarchyStore } from "../stores/fixture-store";
-import type { QueueScanRequest, SensitivityScanner } from "./contracts";
+import {
+  scheduledScanTargets,
+  type QueueScanRequest,
+  type SensitivityScanner,
+} from "./contracts";
 
 export class FixtureScanner implements SensitivityScanner {
   async queue(request: QueueScanRequest): Promise<SensitivityScanRun> {
@@ -27,12 +31,20 @@ export async function queueAuthorizedRunNow(input: {
 }) {
   if (input.capability !== "ReportAdmin") throw new Error("Run now requires ReportAdmin");
   const store = new FixtureHierarchyStore();
-  const [nodes, assignments] = await Promise.all([store.getNodes(), store.getAssignments()]);
-  const scope = resolveHierarchyScope(input.userUpn, nodes, assignments);
+  const [nodes, assignments, sites, siteMappings] = await Promise.all([
+    store.getNodes(),
+    store.getAssignments(),
+    store.getSites(),
+    store.getSiteMappings(),
+  ]);
+  const scope = resolveHierarchyScope(input.userUpn, nodes, assignments, sites, siteMappings);
   if (scope.allowedSiteIds.length === 0) throw new Error("No active hierarchy assignment");
+  const scheduledSiteIds = new Set(scheduledScanTargets(sites).map((target) => target.siteId));
   return new FixtureScanner().queue({
     trigger: "manual",
     requestedBy: input.userUpn,
-    targets: scope.allowedSiteIds.map((siteId) => ({ siteId })),
+    targets: scope.allowedSiteIds
+      .filter((siteId) => scheduledSiteIds.has(siteId))
+      .map((siteId) => ({ siteId })),
   });
 }

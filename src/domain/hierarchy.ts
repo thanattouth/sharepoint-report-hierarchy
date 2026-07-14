@@ -1,6 +1,8 @@
 import type {
+  GovernedSharePointSite,
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
+  GovernanceHierarchySiteMapping,
 } from "./types";
 
 const UPN_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,6 +18,8 @@ export class HierarchyConfigurationError extends Error {
 export function validateHierarchyConfiguration(
   nodes: GovernanceHierarchyNode[],
   assignments: GovernanceHierarchyAssignment[],
+  sites: GovernedSharePointSite[],
+  siteMappings: GovernanceHierarchySiteMapping[],
 ): void {
   const issues: string[] = [];
   const ids = new Set<string>();
@@ -24,14 +28,6 @@ export function validateHierarchyConfiguration(
     if (ids.has(node.id)) issues.push(`duplicate node id: ${node.id}`);
     ids.add(node.id);
     if (node.parentId === node.id) issues.push(`self parent: ${node.id}`);
-    if (node.site) {
-      if (!HOSTNAME_PATTERN.test(node.site.hostname)) {
-        issues.push(`invalid hostname: ${node.id}`);
-      }
-      if (!node.site.path.startsWith("/") || node.site.path.includes("..")) {
-        issues.push(`invalid site path: ${node.id}`);
-      }
-    }
   }
 
   for (const node of nodes) {
@@ -66,6 +62,32 @@ export function validateHierarchyConfiguration(
     }
   }
 
+  const siteIds = new Set<string>();
+  for (const site of sites) {
+    if (siteIds.has(site.id)) issues.push(`duplicate site id: ${site.id}`);
+    siteIds.add(site.id);
+    if (!HOSTNAME_PATTERN.test(site.hostname)) issues.push(`invalid hostname: ${site.id}`);
+    if (!site.path.startsWith("/") || site.path.includes("..")) {
+      issues.push(`invalid site path: ${site.id}`);
+    }
+  }
+
+  const mappingKeys = new Set<string>();
+  const activePlacements = new Map<string, number>();
+  for (const mapping of siteMappings) {
+    const key = `${mapping.nodeId}:${mapping.siteId}`;
+    if (mappingKeys.has(key)) issues.push(`duplicate site mapping: ${key}`);
+    mappingKeys.add(key);
+    if (!ids.has(mapping.nodeId)) issues.push(`site mapping references missing node: ${mapping.nodeId}`);
+    if (!siteIds.has(mapping.siteId)) issues.push(`site mapping references missing site: ${mapping.siteId}`);
+    if (mapping.active) {
+      activePlacements.set(mapping.siteId, (activePlacements.get(mapping.siteId) ?? 0) + 1);
+    }
+  }
+  for (const [siteId, placements] of activePlacements) {
+    if (placements > 1) issues.push(`site has multiple active hierarchy placements: ${siteId}`);
+  }
+
   if (issues.length > 0) throw new HierarchyConfigurationError([...new Set(issues)]);
 }
 
@@ -79,8 +101,10 @@ export function resolveHierarchyScope(
   userUpn: string,
   nodes: GovernanceHierarchyNode[],
   assignments: GovernanceHierarchyAssignment[],
+  sites: GovernedSharePointSite[],
+  siteMappings: GovernanceHierarchySiteMapping[],
 ): ResolvedScope {
-  validateHierarchyConfiguration(nodes, assignments);
+  validateHierarchyConfiguration(nodes, assignments, sites, siteMappings);
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const children = new Map<string, GovernanceHierarchyNode[]>();
   for (const node of nodes) {
@@ -109,11 +133,15 @@ export function resolveHierarchyScope(
     else visible.add(assignment.nodeId);
   }
 
-  const allowedSites = new Set<string>();
-  for (const nodeId of visible) {
-    const siteId = byId.get(nodeId)?.site?.siteId;
-    if (siteId) allowedSites.add(siteId);
-  }
+  const activeSiteIds = new Set(sites.filter((site) => site.active).map((site) => site.id));
+  const allowedSites = new Set(
+    siteMappings
+      .filter(
+        (mapping) =>
+          mapping.active && visible.has(mapping.nodeId) && activeSiteIds.has(mapping.siteId),
+      )
+      .map((mapping) => mapping.siteId),
+  );
 
   return {
     assignedNodeIds: [...new Set(activeAssignments.map((item) => item.nodeId))],
@@ -126,6 +154,8 @@ export function siteIdsUnderNode(
   nodeId: string,
   nodes: GovernanceHierarchyNode[],
   visibleNodeIds: string[],
+  sites: GovernedSharePointSite[],
+  siteMappings: GovernanceHierarchySiteMapping[],
 ): string[] {
   const visible = new Set(visibleNodeIds);
   if (!visible.has(nodeId)) return [];
@@ -146,12 +176,17 @@ export function siteIdsUnderNode(
       }
     }
   }
+  const activeSiteIds = new Set(sites.filter((site) => site.active).map((site) => site.id));
   return [
     ...new Set(
-      nodes
-        .filter((node) => descendants.has(node.id))
-        .map((node) => node.site?.siteId)
-        .filter((siteId): siteId is string => Boolean(siteId)),
+      siteMappings
+        .filter(
+          (mapping) =>
+            mapping.active &&
+            descendants.has(mapping.nodeId) &&
+            activeSiteIds.has(mapping.siteId),
+        )
+        .map((mapping) => mapping.siteId),
     ),
   ];
 }

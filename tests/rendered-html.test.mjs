@@ -20,7 +20,9 @@ test("server-renders the scoped report prototype", async () => {
   assert.match(html, /<title>Sensitivity Report \| SharePoint Governance<\/title>/i);
   assert.match(html, /Secret file exposure/);
   assert.match(html, /SERVER FILTERED/);
-  assert.match(html, /Scope navigator/);
+  assert.match(html, /Business visibility/);
+  assert.match(html, /FLAT SHAREPOINT INVENTORY/);
+  assert.match(html, /Scheduled cache/);
   assert.doesNotMatch(html, /tree-line/);
   assert.match(html, /FY27-Strategy\.pdf/);
   assert.match(html, /Project Ledger/);
@@ -41,6 +43,16 @@ test("hierarchy navigator renders one level at a time and supports descendant se
   const searchExplorer = searchHtml.match(/<article class="panel scope-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
   assert.match(searchExplorer, /Project Aurora/);
   assert.doesNotMatch(searchExplorer, /Project Nova/);
+});
+
+test("SharePoint sites render as a separate searchable flat inventory", async () => {
+  const response = await render("/?siteQ=commercial");
+  const html = await response.text();
+  const siteExplorer = html.match(/<article class="panel site-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
+  assert.match(siteExplorer, /Commercial Leadership Hub/);
+  assert.match(siteExplorer, /Awaiting scan/);
+  assert.match(siteExplorer, /Visibility มาจาก business mapping/);
+  assert.doesNotMatch(siteExplorer, /Project Aurora/);
 });
 
 test("project persona receives only its server-resolved site", async () => {
