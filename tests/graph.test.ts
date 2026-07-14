@@ -75,6 +75,7 @@ test("Graph pilot configuration fails closed and supports managed identity by de
     }),
   });
   assert.equal(config.auth.mode, "default");
+  assert.equal(config.auth.tenantId, TENANT_ID);
   assert.equal(config.maxConcurrency, 4);
   assert.deepEqual([...config.reportableLabelIds], [CONFIDENTIAL_LABEL_ID, SECRET_LABEL_ID]);
   assert.equal(config.reportableLabelNames.get(CONFIDENTIAL_LABEL_ID), "Confidential");

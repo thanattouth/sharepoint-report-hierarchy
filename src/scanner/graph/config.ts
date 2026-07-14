@@ -1,6 +1,7 @@
 export type GraphPilotAuthConfig =
   | {
       mode: "default";
+      tenantId: string;
       managedIdentityClientId?: string;
     }
   | {
@@ -111,6 +112,7 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
       }
     : {
         mode: "default",
+        tenantId,
         managedIdentityClientId: env.SCANNER_MANAGED_IDENTITY_CLIENT_ID
           ? uuid(env.SCANNER_MANAGED_IDENTITY_CLIENT_ID.trim(), "SCANNER_MANAGED_IDENTITY_CLIENT_ID")
           : undefined,

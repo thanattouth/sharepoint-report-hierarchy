@@ -48,6 +48,8 @@ concurrent extractions and three retries, then tune only from measured pilot tel
 After the approval gate and secret-managed environment are ready, run `npm run p4:check`.
 The command verifies token acquisition, the exact allowlisted Site, and its document
 libraries without enumerating files or extracting labels. It prints no token or secret.
+Azure Identity is pinned to `SCANNER_TENANT_ID`; a developer CLI session in another
+tenant must never be accepted implicitly.
 Only proceed to the scanner executor after this check succeeds and a durable store adapter
 is configured.
 

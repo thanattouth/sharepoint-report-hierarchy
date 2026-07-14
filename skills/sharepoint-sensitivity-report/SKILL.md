@@ -68,6 +68,8 @@ Enforce all of these on every change:
 - Keep Microsoft Graph authentication, transport, orchestration, and persistence behind separate typed ports. Inject fetch, time, sleep, logging, and stores where deterministic testing matters.
 - Validate scanner configuration at worker startup and fail closed. Never add tenant-specific production defaults or accept more than the approved P4 Site allowlist.
 - Prefer managed identity or workload identity for hosted workloads. Keep client-secret mode limited to an approved local pilot and obtain tokens through Azure Identity.
+- Pin Azure Identity token acquisition to the configured scanner tenant. Never inherit an
+  unrelated developer CLI tenant implicitly during a connection probe or scan.
 - Treat delta processing as at-least-once: apply idempotent inventory changes before saving the cursor, and never advance it after a persistence failure.
 - Log operational identifiers, status, attempt, duration, and Graph request ID without tokens, secrets, file names, paths, or query-string delta tokens.
 - Add contract tests for retries, throttling, locked files, partial runs, storage failure, cursor safety, configuration rejection, and cross-Site denial.

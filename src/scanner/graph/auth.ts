@@ -22,6 +22,7 @@ export function createGraphTokenProvider(config: GraphPilotAuthConfig) {
   const credential = config.mode === "client-secret"
     ? new ClientSecretCredential(config.tenantId, config.clientId, config.clientSecret)
     : new DefaultAzureCredential({
+        tenantId: config.tenantId,
         managedIdentityClientId: config.managedIdentityClientId,
       });
   return new AzureIdentityGraphTokenProvider(credential);
