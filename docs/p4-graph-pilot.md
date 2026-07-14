@@ -19,7 +19,7 @@ Record all of these decisions before supplying credentials:
 
 1. Non-production SharePoint Site hostname, path, and canonical Graph Site ID.
 2. Controlled test files and manually verified expected labels.
-3. Secret label ID or IDs.
+3. Reportable label IDs, including Confidential and Secret as applicable.
 4. Scanner Entra application/managed identity and credential model.
 5. Application permission and admin-consent approval. The extraction API documents
    `Files.Read.All` as least privileged; do not silently substitute `Sites.Selected`.
@@ -33,7 +33,10 @@ file. Required values are:
 
 - `SCANNER_TENANT_ID`
 - `SCANNER_ALLOWED_SITE_ID`
-- `SCANNER_SECRET_LABEL_IDS`
+- `SCANNER_REPORTABLE_LABEL_IDS` — comma-separated Purview label GUIDs included in
+  the report, such as Confidential and Secret. Do not compare display names in code.
+- Optional `SCANNER_LABEL_DISPLAY_NAMES_JSON` — JSON object mapping approved label
+  GUIDs to display names. Every key must already be in the reportable label allowlist.
 - `SCANNER_AUTH_MODE=default` for managed/workload identity, optionally with
   `SCANNER_MANAGED_IDENTITY_CLIENT_ID`
 - `SCANNER_AUTH_MODE=client-secret` for a local pilot, plus `SCANNER_CLIENT_ID` and

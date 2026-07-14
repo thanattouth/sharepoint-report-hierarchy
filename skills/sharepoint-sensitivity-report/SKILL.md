@@ -1,6 +1,6 @@
 ---
 name: sharepoint-sensitivity-report
-description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached Secret-file reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph pilot planning, Azure scheduled scanning, or milestone work from P0 through P5.
+description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph pilot planning, Azure scheduled scanning, or milestone work from P0 through P5.
 ---
 
 # SharePoint Sensitivity Report
@@ -40,10 +40,13 @@ Enforce all of these on every change:
 - Fail closed when hierarchy, assignment, or scope resolution is unavailable or ambiguous.
 - Return no inventory for users without an active assignment.
 - Keep report requests cache-only. Never enumerate SharePoint or call `extractSensitivityLabels` during page load.
+- Treat reportable labels as tenant configuration keyed by immutable label ID. Support
+  multiple labels such as Confidential and Secret; never hard-code one display name as
+  the product boundary.
 - Keep scanner secrets, app-only tokens, tenant configuration, and credentials outside browser code and `NEXT_PUBLIC_*` values.
 - Keep report web identity separate from scheduled-scanner identity.
 - Use `tenantId + siteId + driveId + itemId` as the stable file key and deduplicate before counting.
-- Determine Secret status from configured label IDs, not display names.
+- Determine report inclusion from configured label IDs, not display names.
 - Exclude deleted/inactive records from current counts.
 - Reconcile counts with distinct filtered detail rows.
 - Generate export rows from the server-resolved scope and current filters; never export all rows for client filtering.
@@ -91,7 +94,7 @@ Use the business-first editorial system in `../../DESIGN.md`:
 - Treat EVP, Department, Group, and Project as customer business scopes, not SharePoint hierarchy levels.
 - Never render flat SharePoint Sites as an expanded hierarchy tree; EVP scopes may contain thousands of Sites.
 - Keep the company hierarchy as an authorization and aggregation model even when the main dashboard does not visualize the tree.
-- Prefer a compact resolved-scope proof on the main report: show the assigned business node or nodes, descendant inclusion, visible-node count, visible-Site count, and Secret count.
+- Prefer a compact resolved-scope proof on the main report: show the assigned business node or nodes, descendant inclusion, visible-node count, visible-Site count, and Sensitive count.
 - Make the searchable, paginated flat Site Explorer the primary navigation for report users.
 - Expose a full hierarchy navigator only for a concrete admin, configuration, or hierarchy-analysis task. Do not add one merely to prove authorization.
 - Derive scope summaries, Site rows, filters, and counts only from server-authorized rollups. Ignore or reject requested node IDs outside `visibleNodeIds` and never use UI state to broaden data scope.
@@ -118,7 +121,7 @@ Required coverage includes:
 - Missing-parent and cycle rejection.
 - Cross-branch request denial.
 - Aggregate/detail reconciliation.
-- Zero-Secret, no-scan, partial, stale, and cache-error states.
+- Zero-Sensitive, no-scan, partial, stale, and cache-error states.
 - Queued scanner behavior without page-load scanning.
 
 Do not declare completion when build or relevant tests fail.
@@ -130,7 +133,7 @@ Do not declare completion when build or relevant tests fail.
 Obtain explicit decisions for:
 
 - Customer hierarchy names and site placement.
-- Production Secret label IDs and whether other labels are included.
+- Production reportable label IDs, including Confidential and Secret where approved.
 - File columns and direct-link behavior.
 - Export and Run now capabilities.
 - Scan cadence and timezone.

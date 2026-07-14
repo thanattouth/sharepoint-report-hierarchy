@@ -22,6 +22,7 @@ export type ReportFilters = {
   nodeId?: string;
   siteId?: string;
   library?: string;
+  labelId?: string;
   search?: string;
   scanStatus?: ScanStatus;
   freshness?: "current" | "stale";
@@ -37,14 +38,14 @@ export type ReportRequest = {
 };
 
 export type ReportData = {
-  state: "ready" | "no-assignment" | "no-sites" | "no-scan" | "zero-secret";
+  state: "ready" | "no-assignment" | "no-sites" | "no-scan" | "zero-sensitive";
   userUpn: string;
   capability: AppCapability;
   assignedNodeIds: string[];
   visibleNodeIds: string[];
   allowedSiteIds: string[];
-  scopeSecretCount: number;
-  filteredSecretCount: number;
+  scopeSensitiveCount: number;
+  filteredSensitiveCount: number;
   siteCount: number;
   libraryCount: number;
   rows: SensitivityInventoryItem[];
@@ -81,6 +82,7 @@ export type ReportData = {
     nodes: Array<{ id: string; name: string; type: GovernanceHierarchyNode["type"] }>;
     sites: Array<{ id: string; name: string }>;
     libraries: string[];
+    labels: Array<{ id: string; name: string }>;
   };
   statusCounts: Record<ScanStatus, number>;
   latestRun?: SensitivityScanRun;
@@ -103,7 +105,7 @@ type ReportSource = {
   siteMappings: GovernanceHierarchySiteMapping[];
   inventory: SensitivityInventoryItem[];
   runs: SensitivityScanRun[];
-  secretLabelIds: Set<string>;
+  reportableLabelIds: Set<string>;
 };
 
 const STATUS_VALUES: ScanStatus[] = [
@@ -136,8 +138,8 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     assignedNodeIds: scope.assignedNodeIds,
     visibleNodeIds: scope.visibleNodeIds,
     allowedSiteIds: scope.allowedSiteIds,
-    scopeSecretCount: 0,
-    filteredSecretCount: 0,
+    scopeSensitiveCount: 0,
+    filteredSensitiveCount: 0,
     siteCount: scope.allowedSiteIds.length,
     libraryCount: 0,
     rows: [],
@@ -147,7 +149,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     hierarchyRollups: [],
     siteRollups: [],
     libraryRollups: [],
-    options: { nodes: [], sites: [], libraries: [] },
+    options: { nodes: [], sites: [], libraries: [], labels: [] },
     statusCounts: Object.fromEntries(STATUS_VALUES.map((status) => [status, 0])) as Record<
       ScanStatus,
       number
@@ -174,12 +176,12 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     ]),
   ) as Record<ScanStatus, number>;
 
-  const isSecret = (item: SensitivityInventoryItem) =>
-    item.sensitivityLabels.some((label) => source.secretLabelIds.has(label.id));
-  const secretRows = dedupe(scopedInventory.filter(isSecret));
-  const scopeSecretCount = secretRows.length;
+  const isReportable = (item: SensitivityInventoryItem) =>
+    item.sensitivityLabels.some((label) => source.reportableLabelIds.has(label.id));
+  const sensitiveRows = dedupe(scopedInventory.filter(isReportable));
+  const scopeSensitiveCount = sensitiveRows.length;
 
-  let filtered = secretRows;
+  let filtered = sensitiveRows;
   let explorerSiteIds = new Set(scope.allowedSiteIds);
   if (request.filters.nodeId) {
     if (!scope.visibleNodeIds.includes(request.filters.nodeId)) {
@@ -202,6 +204,13 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   }
   if (request.filters.library) {
     filtered = filtered.filter((item) => item.libraryName === request.filters.library);
+  }
+  if (request.filters.labelId) {
+    filtered = filtered.filter((item) =>
+      item.sensitivityLabels.some((label) =>
+        label.id === request.filters.labelId && source.reportableLabelIds.has(label.id),
+      ),
+    );
   }
   if (request.filters.search?.trim()) {
     const query = request.filters.search.trim().toLocaleLowerCase();
@@ -236,8 +245,8 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     (a, b) =>
       a.siteName.localeCompare(b.siteName) || a.fileName.localeCompare(b.fileName),
   );
-  const filteredSecretCount = filtered.length;
-  const pageCount = Math.max(Math.ceil(filteredSecretCount / pageSize), 1);
+  const filteredSensitiveCount = filtered.length;
+  const pageCount = Math.max(Math.ceil(filteredSensitiveCount / pageSize), 1);
   const page = Math.min(requestedPage, pageCount);
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
@@ -336,20 +345,25 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   }));
 
   const allLibraries = [...new Set(scopedInventory.map((item) => item.libraryName))].sort();
+  const allLabels = [...new Map(
+    sensitiveRows.flatMap((item) => item.sensitivityLabels)
+      .filter((label) => source.reportableLabelIds.has(label.id))
+      .map((label) => [label.id, { id: label.id, name: label.displayName ?? label.id }]),
+  ).values()].sort((a, b) => a.name.localeCompare(b.name));
   const completedRun = source.runs.find((run) => run.status === "succeeded");
   const partialRun = source.runs.find((run) => run.status === "partial");
   const latestRun = request.scenario === "partial" ? partialRun : completedRun;
   const freshness = request.scenario === "partial" ? "partial" : request.scenario === "stale" ? "stale" : "current";
 
   return {
-    state: scopeSecretCount === 0 ? "zero-secret" : "ready",
+    state: scopeSensitiveCount === 0 ? "zero-sensitive" : "ready",
     userUpn: request.userUpn,
     capability: request.capability,
     assignedNodeIds: scope.assignedNodeIds,
     visibleNodeIds: scope.visibleNodeIds,
     allowedSiteIds: scope.allowedSiteIds,
-    scopeSecretCount,
-    filteredSecretCount,
+    scopeSensitiveCount,
+    filteredSensitiveCount,
     siteCount: scope.allowedSiteIds.length,
     libraryCount: new Set(scopedInventory.map((item) => `${item.siteId}:${item.libraryName}`)).size,
     rows,
@@ -365,6 +379,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
         .filter((site) => site.active && allowedSites.has(site.id))
         .map((site) => ({ id: site.id, name: site.name })),
       libraries: allLibraries,
+      labels: allLabels,
     },
     statusCounts,
     latestRun,

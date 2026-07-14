@@ -16,7 +16,7 @@ export class FixtureScanner implements SensitivityScanner {
       targetSiteIds: request.targets.map((target) => target.siteId),
       scannedCount: 0,
       changedCount: 0,
-      secretCount: 0,
+      sensitiveCount: 0,
       noLabelCount: 0,
       lockedCount: 0,
       throttledCount: 0,

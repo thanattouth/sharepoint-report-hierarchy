@@ -20,6 +20,7 @@ import type { DeltaStateStore, InventoryStore, ScanRunStore } from "../src/store
 const TENANT_ID = "11111111-1111-4111-8111-111111111111";
 const CLIENT_ID = "22222222-2222-4222-8222-222222222222";
 const SECRET_LABEL_ID = "33333333-3333-4333-8333-333333333333";
+const CONFIDENTIAL_LABEL_ID = "44444444-4444-4444-8444-444444444444";
 const SITE_ID = "contoso.sharepoint.com,site-collection-id,site-web-id";
 
 const tokenProvider: GraphAccessTokenProvider = {
@@ -67,21 +68,37 @@ test("Graph pilot configuration fails closed and supports managed identity by de
   const config = loadGraphPilotConfig({
     SCANNER_TENANT_ID: TENANT_ID,
     SCANNER_ALLOWED_SITE_ID: SITE_ID,
-    SCANNER_SECRET_LABEL_IDS: SECRET_LABEL_ID,
+    SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
+    SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
+      [CONFIDENTIAL_LABEL_ID]: "Confidential",
+      [SECRET_LABEL_ID]: "Secret",
+    }),
   });
   assert.equal(config.auth.mode, "default");
   assert.equal(config.maxConcurrency, 4);
-  assert.deepEqual([...config.secretLabelIds], [SECRET_LABEL_ID]);
+  assert.deepEqual([...config.reportableLabelIds], [CONFIDENTIAL_LABEL_ID, SECRET_LABEL_ID]);
+  assert.equal(config.reportableLabelNames.get(CONFIDENTIAL_LABEL_ID), "Confidential");
 
   assert.throws(
     () => loadGraphPilotConfig({
       SCANNER_AUTH_MODE: "client-secret",
       SCANNER_TENANT_ID: TENANT_ID,
       SCANNER_ALLOWED_SITE_ID: SITE_ID,
-      SCANNER_SECRET_LABEL_IDS: SECRET_LABEL_ID,
+      SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
       SCANNER_CLIENT_ID: CLIENT_ID,
     }),
     /SCANNER_CLIENT_SECRET is required/,
+  );
+  assert.throws(
+    () => loadGraphPilotConfig({
+      SCANNER_TENANT_ID: TENANT_ID,
+      SCANNER_ALLOWED_SITE_ID: SITE_ID,
+      SCANNER_REPORTABLE_LABEL_IDS: SECRET_LABEL_ID,
+      SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
+        [CONFIDENTIAL_LABEL_ID]: "Confidential",
+      }),
+    }),
+    /outside SCANNER_REPORTABLE_LABEL_IDS/,
   );
 });
 
@@ -151,7 +168,11 @@ function scannerConfig() {
   return loadGraphPilotConfig({
     SCANNER_TENANT_ID: TENANT_ID,
     SCANNER_ALLOWED_SITE_ID: SITE_ID,
-    SCANNER_SECRET_LABEL_IDS: SECRET_LABEL_ID,
+    SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
+    SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
+      [CONFIDENTIAL_LABEL_ID]: "Confidential",
+      [SECRET_LABEL_ID]: "Secret",
+    }),
     SCANNER_MAX_CONCURRENCY: "2",
   });
 }
@@ -178,7 +199,7 @@ test("one-site Graph pilot persists outcomes, deletion markers and delta state",
         };
       }
       if (path.includes("item-secret")) {
-        return { value: { labels: [{ sensitivityLabelId: SECRET_LABEL_ID, assignmentMethod: "standard", tenantId: TENANT_ID }] } };
+        return { value: { labels: [{ sensitivityLabelId: CONFIDENTIAL_LABEL_ID, assignmentMethod: "standard", tenantId: TENANT_ID }] } };
       }
       if (path.includes("item-locked")) {
         throw new GraphRequestError("locked", 423, "fileDecryptionDeferred", "request-423");
@@ -200,7 +221,8 @@ test("one-site Graph pilot persists outcomes, deletion markers and delta state",
   assert.equal(result.status, "succeeded");
   assert.equal(result.changedCount, 3);
   assert.equal(result.scannedCount, 2);
-  assert.equal(result.secretCount, 1);
+  assert.equal(result.sensitiveCount, 1);
+  assert.equal(inventoryStore.changes[0].upserts[0].sensitivityLabels[0].displayName, "Confidential");
   assert.equal(result.lockedCount, 1);
   assert.equal(inventoryStore.changes[0].upserts[1].scanStatus, "locked");
   assert.equal(inventoryStore.changes[0].deletions[0].itemId, "item-deleted");

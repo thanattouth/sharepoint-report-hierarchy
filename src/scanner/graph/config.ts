@@ -13,7 +13,8 @@ export type GraphPilotAuthConfig =
 export type GraphPilotConfig = {
   tenantId: string;
   allowedSiteId: string;
-  secretLabelIds: Set<string>;
+  reportableLabelIds: Set<string>;
+  reportableLabelNames: Map<string, string>;
   maxConcurrency: number;
   maxRetries: number;
   auth: GraphPilotAuthConfig;
@@ -48,6 +49,38 @@ function boundedInteger(value: string | undefined, fallback: number, min: number
   return parsed;
 }
 
+function reportableLabelNames(
+  value: string | undefined,
+  reportableLabelIds: Set<string>,
+): Map<string, string> {
+  if (!value?.trim()) return new Map();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new ScannerConfigurationError("SCANNER_LABEL_DISPLAY_NAMES_JSON must be valid JSON");
+  }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+    throw new ScannerConfigurationError("SCANNER_LABEL_DISPLAY_NAMES_JSON must be a JSON object");
+  }
+  const result = new Map<string, string>();
+  for (const [id, name] of Object.entries(parsed)) {
+    uuid(id, "SCANNER_LABEL_DISPLAY_NAMES_JSON key");
+    if (!reportableLabelIds.has(id)) {
+      throw new ScannerConfigurationError(
+        "SCANNER_LABEL_DISPLAY_NAMES_JSON contains a label outside SCANNER_REPORTABLE_LABEL_IDS",
+      );
+    }
+    if (typeof name !== "string" || !name.trim()) {
+      throw new ScannerConfigurationError(
+        "SCANNER_LABEL_DISPLAY_NAMES_JSON values must be non-empty strings",
+      );
+    }
+    result.set(id, name.trim());
+  }
+  return result;
+}
+
 export function loadGraphPilotConfig(env: Record<string, string | undefined>): GraphPilotConfig {
   const tenantId = uuid(required(env, "SCANNER_TENANT_ID"), "SCANNER_TENANT_ID");
   const allowedSiteId = required(env, "SCANNER_ALLOWED_SITE_ID");
@@ -55,10 +88,14 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
     throw new ScannerConfigurationError("SCANNER_ALLOWED_SITE_ID has an invalid Graph site ID format");
   }
 
-  const secretLabelIds = new Set(
-    required(env, "SCANNER_SECRET_LABEL_IDS")
+  const reportableLabelIds = new Set(
+    required(env, "SCANNER_REPORTABLE_LABEL_IDS")
       .split(",")
-      .map((value) => uuid(value.trim(), "SCANNER_SECRET_LABEL_IDS")),
+      .map((value) => uuid(value.trim(), "SCANNER_REPORTABLE_LABEL_IDS")),
+  );
+  const labelNames = reportableLabelNames(
+    env.SCANNER_LABEL_DISPLAY_NAMES_JSON,
+    reportableLabelIds,
   );
   const mode = env.SCANNER_AUTH_MODE?.trim() || "default";
   if (!(["default", "client-secret"] as const).includes(mode as "default" | "client-secret")) {
@@ -82,7 +119,8 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
   return {
     tenantId,
     allowedSiteId,
-    secretLabelIds,
+    reportableLabelIds,
+    reportableLabelNames: labelNames,
     maxConcurrency: boundedInteger(env.SCANNER_MAX_CONCURRENCY, 4, 1, 16, "SCANNER_MAX_CONCURRENCY"),
     maxRetries: boundedInteger(env.SCANNER_MAX_RETRIES, 3, 0, 8, "SCANNER_MAX_RETRIES"),
     auth,

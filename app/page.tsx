@@ -158,7 +158,7 @@ export default async function Home({
           <section className="page-heading">
             <div>
               <p className="eyebrow">MICROSOFT PURVIEW · SHAREPOINT</p>
-              <h1>Secret file exposure</h1>
+              <h1>Sensitive file exposure</h1>
               <p>ติดตาม Sensitivity Label จาก scheduled inventory ภายใน business scope ที่คุณรับผิดชอบ</p>
             </div>
             <div className="heading-actions">
@@ -230,11 +230,11 @@ export default async function Home({
                 </section>
               ) : null}
 
-              <section className="metric-grid" aria-label="สรุป Secret file exposure">
+              <section className="metric-grid" aria-label="สรุป Sensitive file exposure">
                 <article className="metric-card metric-primary">
                   <div className="metric-top"><span className="metric-icon">S</span><span className="trend">IN SCOPE</span></div>
-                  <strong>{report.scopeSecretCount.toLocaleString("th-TH")}</strong>
-                  <p>Secret files</p><small>Distinct active files จาก label ID</small>
+                  <strong>{report.scopeSensitiveCount.toLocaleString("th-TH")}</strong>
+                  <p>Sensitive files</p><small>Confidential, Secret และ configured labels</small>
                 </article>
                 <article className="metric-card">
                   <div className="metric-top"><span className="metric-icon neutral">▦</span><span className="subtle">ACTIVE</span></div>
@@ -250,10 +250,10 @@ export default async function Home({
                 </article>
               </section>
 
-              {report.state === "zero-secret" ? (
+              {report.state === "zero-sensitive" ? (
                 <section className="empty-state success-state" role="status">
                   <span className="empty-icon">✓</span>
-                  <div><p className="eyebrow">COMPLETED SCAN</p><h2>ไม่พบ Secret file ใน scope นี้</h2><p>Completed inventory มี {Object.values(report.statusCounts).reduce((sum, count) => sum + count, 0)} รายการ และไม่พบ configured Secret label ID</p></div>
+                  <div><p className="eyebrow">COMPLETED SCAN</p><h2>ไม่พบ Sensitive file ใน scope นี้</h2><p>Completed inventory มี {Object.values(report.statusCounts).reduce((sum, count) => sum + count, 0)} รายการ และไม่พบ configured reportable label ID</p></div>
                 </section>
               ) : (
                 <>
@@ -273,7 +273,7 @@ export default async function Home({
                       <dl>
                         <div><dt>VISIBLE NODES</dt><dd>{report.visibleNodeIds.length.toLocaleString("en-US")}</dd></div>
                         <div><dt>VISIBLE SITES</dt><dd>{report.siteCount.toLocaleString("en-US")}</dd></div>
-                        <div><dt>SECRET FILES</dt><dd>{report.scopeSecretCount.toLocaleString("en-US")}</dd></div>
+                        <div><dt>SENSITIVE FILES</dt><dd>{report.scopeSensitiveCount.toLocaleString("en-US")}</dd></div>
                       </dl>
                       <span className="resolved-badge"><i aria-hidden="true" /> SERVER RESOLVED</span>
                     </section>
@@ -299,7 +299,7 @@ export default async function Home({
                             <span className="site-meta"><small>BUSINESS MAPPING</small><strong>{site.nodeName}</strong></span>
                             <span className="site-meta"><small>LAST SCANNED</small><strong>{formatDate(site.lastScannedAt)}</strong></span>
                             <span className={`site-scan-state scan-${site.scanState}`}>{siteScanLabels[site.scanState]}</span>
-                            <span className="site-count"><strong>{site.count.toLocaleString("en-US")}</strong><small>Secret</small></span>
+                            <span className="site-count"><strong>{site.count.toLocaleString("en-US")}</strong><small>Sensitive</small></span>
                           </a>
                         ))}
                         {visibleSites.length === 0 ? <div className="site-no-results"><strong>ไม่พบ SharePoint Site ที่ค้นหา</strong><p>ลองค้นหาด้วยชื่อ Site, Site ID หรือชื่อหน่วยงานอื่น</p></div> : null}
@@ -310,7 +310,7 @@ export default async function Home({
                   </section>
 
                   <section className="panel inventory-panel" id="inventory">
-                    <div className="panel-heading inventory-heading"><div><p className="eyebrow">FILE-LEVEL INVENTORY</p><h2>Secret files</h2><p>{report.filteredSecretCount} จาก {report.scopeSecretCount} files ภายใน resolved scope</p></div><span className="scope-stamp">SERVER FILTERED</span></div>
+                    <div className="panel-heading inventory-heading"><div><p className="eyebrow">FILE-LEVEL INVENTORY</p><h2>Sensitive files</h2><p>{report.filteredSensitiveCount} จาก {report.scopeSensitiveCount} files ภายใน resolved scope</p></div><span className="scope-stamp">SERVER FILTERED</span></div>
                     <form className="filter-bar" method="get" aria-label="ตัวกรอง file inventory">
                       {Object.entries(preserved).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
                       <label className="search-field"><span aria-hidden="true">⌕</span><input name="q" defaultValue={getSingle(params.q)} placeholder="ค้นหาชื่อไฟล์หรือ path" aria-label="ค้นหาชื่อไฟล์หรือ path" /></label>
@@ -320,6 +320,7 @@ export default async function Home({
                         <span>SITE</span><strong>{selectedSite?.name ?? "ทุก Site ใน scope"}</strong><a href={selectedSite ? makeHref(params, { site: undefined, page: undefined }) : "#sites"}>{selectedSite ? "ล้าง" : "เลือก"}</a>
                       </div>
                       <label><span className="sr-only">Library</span><select name="library" defaultValue={getSingle(params.library) ?? ""}><option value="">ทุก library</option>{report.options.libraries.map((library) => <option key={library} value={library}>{library}</option>)}</select></label>
+                      <label><span className="sr-only">Sensitivity label</span><select name="label" defaultValue={getSingle(params.label) ?? ""}><option value="">ทุก label</option>{report.options.labels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}</select></label>
                       <label><span className="sr-only">Scan status</span><select name="status" defaultValue={getSingle(params.status) ?? ""}><option value="">ทุก status</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
                       <label><span className="sr-only">Freshness</span><select name="freshness" defaultValue={getSingle(params.freshness) ?? ""}><option value="">ทุก freshness</option><option value="current">Current ≤ 24h</option><option value="stale">Stale &gt; 24h</option></select></label>
                       <button className="button filter-button" type="submit">กรองข้อมูล</button>
@@ -335,13 +336,13 @@ export default async function Home({
                             return <tr key={`${item.siteId}:${item.driveId}:${item.itemId}`}>
                               <td><span className="file-cell"><span className="file-type">{item.fileName.split(".").pop()?.slice(0, 3).toUpperCase()}</span><span><strong>{item.fileName}</strong><small>{item.filePath}</small></span></span></td>
                               <td><strong>{item.siteName}</strong><small>{item.libraryName}</small></td>
-                              <td><span className="secret-label"><i />{label?.displayName ?? "Secret"}</span><small>{label?.assignmentMethod ?? "unknown"}</small></td>
+                              <td><span className="sensitivity-label"><i />{label?.displayName ?? "Sensitive"}</span><small>{label?.assignmentMethod ?? "unknown"}</small></td>
                               <td><StatusBadge status={item.scanStatus} />{item.errorCode ? <small>Error {item.errorCode}</small> : null}</td>
                               <td><strong>{formatDate(item.scannedAt)}</strong><small>{item.modifiedAt ? `Modified ${formatDate(item.modifiedAt)}` : ""}</small></td>
                               <td><details className="row-details"><summary aria-label={`ดูรายละเอียด ${item.fileName}`}>•••</summary><div><b>Stable identity</b><code>{item.siteId}:{item.driveId}:{item.itemId}</code><b>Label ID</b><code>{label?.id}</code>{item.errorMessage ? <p>{item.errorMessage}</p> : null}</div></details></td>
                             </tr>;
                           })}
-                          {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">ไม่พบ Secret file ที่ตรงกับ filters ปัจจุบัน</td></tr> : null}
+                          {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">ไม่พบ Sensitive file ที่ตรงกับ filters ปัจจุบัน</td></tr> : null}
                         </tbody>
                       </table>
                     </div>

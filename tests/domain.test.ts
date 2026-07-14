@@ -7,7 +7,7 @@ import {
 } from "../src/domain/hierarchy";
 import type { GovernanceHierarchyNode } from "../src/domain/types";
 import {
-  SECRET_LABEL_IDS,
+  REPORTABLE_LABEL_IDS,
   hierarchyAssignments,
   hierarchyNodes,
   hierarchySiteMappings,
@@ -30,7 +30,7 @@ const source = {
   siteMappings: hierarchySiteMappings,
   inventory: inventoryItems,
   runs: scanRuns,
-  secretLabelIds: SECRET_LABEL_IDS,
+  reportableLabelIds: REPORTABLE_LABEL_IDS,
 };
 
 function request(userUpn: string, filters: ReportRequest["filters"] = {}): ReportRequest {
@@ -75,7 +75,7 @@ test("multiple assignments form a deduplicated union", () => {
   const scope = resolve("delegate@contoso.com");
   assert.deepEqual(scope.allowedSiteIds.sort(), ["site-aurora", "site-ledger", "site-nova"]);
   const report = buildReport(source, request("delegate@contoso.com"));
-  assert.equal(report.scopeSecretCount, 7);
+  assert.equal(report.scopeSensitiveCount, 7);
 });
 
 test("no assignment and inactive assignment expose no inventory", () => {
@@ -142,14 +142,30 @@ test("counts reconcile with distinct filtered file rows", () => {
     ...request("nipaporn@contoso.com", { pageSize: 50 }),
     capability: "ReportAdmin",
   });
-  assert.equal(report.scopeSecretCount, 10);
-  assert.equal(report.filteredSecretCount, report.rows.length);
+  assert.equal(report.scopeSensitiveCount, 10);
+  assert.equal(report.filteredSensitiveCount, report.rows.length);
   assert.equal(report.siteRollups.reduce((sum, site) => sum + site.count, 0), 10);
 
   const filtered = buildReport(source, request("nipaporn@contoso.com", { siteId: "site-aurora", pageSize: 50 }));
-  assert.equal(filtered.filteredSecretCount, 2);
+  assert.equal(filtered.filteredSensitiveCount, 2);
   assert.equal(filtered.rows.length, 2);
   assert.ok(filtered.rows.every((row) => row.siteId === "site-aurora"));
+});
+
+test("reportable label filter separates Confidential from Secret", () => {
+  const confidential = buildReport(
+    source,
+    request("nipaporn@contoso.com", { labelId: "label-confidential-th", pageSize: 50 }),
+  );
+  assert.equal(confidential.scopeSensitiveCount, 10);
+  assert.equal(confidential.filteredSensitiveCount, 4);
+  assert.ok(confidential.rows.every((row) =>
+    row.sensitivityLabels.some((label) => label.id === "label-confidential-th"),
+  ));
+  assert.deepEqual(
+    confidential.options.labels.map((label) => label.name),
+    ["Confidential", "Secret"],
+  );
 });
 
 test("hierarchy rollups expose scalable navigation metadata", () => {
@@ -171,8 +187,8 @@ test("hierarchy rollups expose scalable navigation metadata", () => {
   );
 });
 
-test("zero-secret scope is distinct from no scan", () => {
-  assert.equal(buildReport(source, request("siriporn@contoso.com")).state, "zero-secret");
+test("zero-sensitive scope is distinct from no scan", () => {
+  assert.equal(buildReport(source, request("siriporn@contoso.com")).state, "zero-sensitive");
   assert.equal(
     buildReport(source, { ...request("siriporn@contoso.com"), scenario: "no-scan" }).state,
     "no-scan",

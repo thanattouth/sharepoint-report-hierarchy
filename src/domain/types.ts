@@ -88,7 +88,7 @@ export type SensitivityScanRun = {
   targetSiteIds: string[];
   scannedCount: number;
   changedCount: number;
-  secretCount: number;
+  sensitiveCount: number;
   noLabelCount: number;
   lockedCount: number;
   throttledCount: number;

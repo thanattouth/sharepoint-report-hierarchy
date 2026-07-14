@@ -76,7 +76,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
       targetSiteIds: [request.target.id],
       scannedCount: 0,
       changedCount: 0,
-      secretCount: 0,
+      sensitiveCount: 0,
       noLabelCount: 0,
       lockedCount: 0,
       throttledCount: 0,
@@ -130,7 +130,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
     const latestOutcomes = new Map<string, { kind: "deleted" } | {
       kind: "file";
       status: ScanStatus;
-      isSecret: boolean;
+      isReportable: boolean;
     }>();
 
     while (next) {
@@ -161,7 +161,9 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
         latestOutcomes.set(item.itemId, {
           kind: "file",
           status: item.scanStatus,
-          isSecret: item.sensitivityLabels.some((label) => this.dependencies.config.secretLabelIds.has(label.id)),
+          isReportable: item.sensitivityLabels.some((label) =>
+            this.dependencies.config.reportableLabelIds.has(label.id),
+          ),
         });
       }
       next = page["@odata.nextLink"];
@@ -178,7 +180,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
     for (const outcome of latestOutcomes.values()) {
       if (outcome.kind === "deleted") continue;
       run.scannedCount += 1;
-      if (outcome.isSecret) run.secretCount += 1;
+      if (outcome.isReportable) run.sensitiveCount += 1;
       if (outcome.status === "no-label") run.noLabelCount += 1;
       if (outcome.status === "locked") run.lockedCount += 1;
       if (outcome.status === "throttled") run.throttledCount += 1;
@@ -219,6 +221,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
         .filter((label): label is Required<Pick<typeof label, "sensitivityLabelId">> & typeof label => Boolean(label.sensitivityLabelId))
         .map((label) => ({
           id: label.sensitivityLabelId,
+          displayName: this.dependencies.config.reportableLabelNames.get(label.sensitivityLabelId),
           assignmentMethod: label.assignmentMethod,
           tenantId: label.tenantId,
         }));

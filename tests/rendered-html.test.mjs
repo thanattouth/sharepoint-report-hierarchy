@@ -18,7 +18,8 @@ test("server-renders the scoped report prototype", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Sensitivity Report \| SharePoint Governance<\/title>/i);
-  assert.match(html, /Secret file exposure/);
+  assert.match(html, /Sensitive file exposure/);
+  assert.match(html, /Confidential/);
   assert.match(html, /SERVER FILTERED/);
   assert.match(html, /RESOLVED DEMO SCOPE/);
   assert.match(html, /AUTHORIZED SHAREPOINT INVENTORY/);

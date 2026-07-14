@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { AppCapability, ScanStatus } from "../domain/types";
-import { SECRET_LABEL_IDS, demoPersonas } from "../fixtures/data";
+import { REPORTABLE_LABEL_IDS, demoPersonas } from "../fixtures/data";
 import {
   FixtureHierarchyStore,
   FixtureInventoryStore,
@@ -36,6 +36,7 @@ export function parseReportRequest(params: RawSearchParams) {
     nodeId: single(params.node) || undefined,
     siteId: single(params.site) || undefined,
     library: single(params.library) || undefined,
+    labelId: single(params.label) || undefined,
     search: single(params.q) || undefined,
     scanStatus: statusValue && statusValues.includes(statusValue) ? statusValue : undefined,
     freshness:
@@ -68,7 +69,7 @@ export async function loadReportPage(params: RawSearchParams): Promise<ReportDat
     sites.filter((site) => site.active).map((site) => site.id),
   );
   return buildReport(
-    { nodes, assignments, sites, siteMappings, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
+    { nodes, assignments, sites, siteMappings, inventory, runs, reportableLabelIds: REPORTABLE_LABEL_IDS },
     request,
   );
 }
@@ -92,7 +93,7 @@ export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
     scanRunStore.listRecent(),
   ]);
   const fullReport = buildReport(
-    { nodes, assignments, sites, siteMappings, inventory, runs, secretLabelIds: SECRET_LABEL_IDS },
+    { nodes, assignments, sites, siteMappings, inventory, runs, reportableLabelIds: REPORTABLE_LABEL_IDS },
     { ...request, filters: { ...request.filters, page: 1, pageSize: 50 } },
   );
   const header = [
@@ -108,7 +109,7 @@ export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
     "Scanned at",
   ];
   const rows = fullReport.rows.map((item) => {
-    const label = item.sensitivityLabels.find((candidate) => SECRET_LABEL_IDS.has(candidate.id));
+    const label = item.sensitivityLabels.find((candidate) => REPORTABLE_LABEL_IDS.has(candidate.id));
     return [
       item.fileName,
       item.filePath,

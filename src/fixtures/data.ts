@@ -7,7 +7,10 @@ import type {
   SensitivityScanRun,
 } from "../domain/types";
 
-export const SECRET_LABEL_IDS = new Set(["label-secret-th"]);
+export const REPORTABLE_LABEL_IDS = new Set([
+  "label-confidential-th",
+  "label-secret-th",
+]);
 const TENANT_ID = "tenant-fixture";
 
 export const hierarchyNodes: GovernanceHierarchyNode[] = [
@@ -183,7 +186,7 @@ export const demoPersonas: DemoPersona[] = [
   { upn: "mali@contoso.com", name: "Mali P.", role: "Group Manager", initials: "MP" },
   { upn: "prach@contoso.com", name: "Prach T.", role: "Project Owner", initials: "PT" },
   { upn: "kittipong@contoso.com", name: "Kittipong R.", role: "Department Head", initials: "KR" },
-  { upn: "siriporn@contoso.com", name: "Siriporn W.", role: "Project Owner · zero Secret", initials: "SW" },
+  { upn: "siriporn@contoso.com", name: "Siriporn W.", role: "Project Owner · zero Sensitive", initials: "SW" },
   { upn: "delegate@contoso.com", name: "Delegate User", role: "Multiple assignments", initials: "DU" },
   { upn: "somchai@contoso.com", name: "Somchai N.", role: "No assignment", initials: "SN" },
 ];
@@ -195,60 +198,61 @@ type FixtureItemInput = Omit<
   driveId?: string;
   modifiedAt?: string;
   scannedAt?: string;
-  secret?: boolean;
+  label?: "Confidential" | "Secret";
   labelName?: string;
   assignmentMethod?: string;
 };
 
 function fixtureItem(input: FixtureItemInput): SensitivityInventoryItem {
+  const { label, labelName, assignmentMethod, ...item } = input;
   const siteWebUrl = `https://contoso.sharepoint.com/sites/${input.siteId.replace("site-", "")}`;
   return {
     tenantId: TENANT_ID,
     driveId: input.driveId ?? `drive-${input.siteId.replace("site-", "")}`,
     modifiedAt: input.modifiedAt ?? "2026-07-13T08:30:00Z",
     scannedAt: input.scannedAt ?? "2026-07-14T06:18:00Z",
-    sensitivityLabels: input.secret
+    sensitivityLabels: label
       ? [
           {
-            id: "label-secret-th",
-            displayName: input.labelName ?? "Secret",
-            assignmentMethod: input.assignmentMethod ?? "standard",
+            id: label === "Secret" ? "label-secret-th" : "label-confidential-th",
+            displayName: labelName ?? label,
+            assignmentMethod: assignmentMethod ?? "standard",
             tenantId: TENANT_ID,
           },
         ]
       : [],
     siteWebUrl,
     fileWebUrl: `${siteWebUrl}${input.filePath}`,
-    ...input,
+    ...item,
   };
 }
 
 export const inventoryItems: SensitivityInventoryItem[] = [
-  fixtureItem({ siteId: "site-aurora", itemId: "aur-001", siteName: "Project Aurora", libraryName: "Board Documents", fileName: "FY27-Strategy.pdf", filePath: "/Board Documents/Executive/FY27-Strategy.pdf", scanStatus: "success", secret: true, assignmentMethod: "privileged" }),
-  fixtureItem({ siteId: "site-aurora", itemId: "aur-002", siteName: "Project Aurora", libraryName: "Deal Room", fileName: "M&A-Target-Assessment.docx", filePath: "/Deal Room/Restricted/M&A-Target-Assessment.docx", scanStatus: "locked", secret: true, scannedAt: "2026-07-12T04:10:00Z", errorCode: "423", errorMessage: "File was locked during the latest extraction attempt" }),
-  fixtureItem({ siteId: "site-aurora", itemId: "aur-003", siteName: "Project Aurora", libraryName: "Documents", fileName: "Partner-Brief.docx", filePath: "/Documents/Partner-Brief.docx", scanStatus: "success", secret: false }),
-  fixtureItem({ siteId: "site-aurora", itemId: "aur-004", siteName: "Project Aurora", libraryName: "Documents", fileName: "README.txt", filePath: "/Documents/README.txt", scanStatus: "no-label", secret: false }),
-  fixtureItem({ siteId: "site-aurora", itemId: "aur-deleted", siteName: "Project Aurora", libraryName: "Deal Room", fileName: "Old-Terms.xlsx", filePath: "/Deal Room/Old-Terms.xlsx", scanStatus: "success", secret: true, deletedAt: "2026-07-13T12:00:00Z" }),
+  fixtureItem({ siteId: "site-aurora", itemId: "aur-001", siteName: "Project Aurora", libraryName: "Board Documents", fileName: "FY27-Strategy.pdf", filePath: "/Board Documents/Executive/FY27-Strategy.pdf", scanStatus: "success", label: "Confidential", assignmentMethod: "privileged" }),
+  fixtureItem({ siteId: "site-aurora", itemId: "aur-002", siteName: "Project Aurora", libraryName: "Deal Room", fileName: "M&A-Target-Assessment.docx", filePath: "/Deal Room/Restricted/M&A-Target-Assessment.docx", scanStatus: "locked", label: "Secret", scannedAt: "2026-07-12T04:10:00Z", errorCode: "423", errorMessage: "File was locked during the latest extraction attempt" }),
+  fixtureItem({ siteId: "site-aurora", itemId: "aur-003", siteName: "Project Aurora", libraryName: "Documents", fileName: "Partner-Brief.docx", filePath: "/Documents/Partner-Brief.docx", scanStatus: "success" }),
+  fixtureItem({ siteId: "site-aurora", itemId: "aur-004", siteName: "Project Aurora", libraryName: "Documents", fileName: "README.txt", filePath: "/Documents/README.txt", scanStatus: "no-label" }),
+  fixtureItem({ siteId: "site-aurora", itemId: "aur-deleted", siteName: "Project Aurora", libraryName: "Deal Room", fileName: "Old-Terms.xlsx", filePath: "/Deal Room/Old-Terms.xlsx", scanStatus: "success", label: "Secret", deletedAt: "2026-07-13T12:00:00Z" }),
 
-  fixtureItem({ siteId: "site-nova", itemId: "nov-001", siteName: "Project Nova", libraryName: "Launch", fileName: "Launch-Readiness.xlsx", filePath: "/Launch/PMO/Launch-Readiness.xlsx", scanStatus: "success", secret: true }),
-  fixtureItem({ siteId: "site-nova", itemId: "nov-002", siteName: "Project Nova", libraryName: "Commercial", fileName: "Pricing-Scenario.xlsx", filePath: "/Commercial/Finance/Pricing-Scenario.xlsx", scanStatus: "success", secret: true, assignmentMethod: "auto" }),
-  fixtureItem({ siteId: "site-nova", itemId: "nov-003", siteName: "Project Nova", libraryName: "Media", fileName: "Launch-Reel.mov", filePath: "/Media/Launch-Reel.mov", scanStatus: "unsupported", secret: false, errorCode: "unsupportedFileType" }),
-  fixtureItem({ siteId: "site-nova", itemId: "nov-004", siteName: "Project Nova", libraryName: "Launch", fileName: "Roadmap.pptx", filePath: "/Launch/Roadmap.pptx", scanStatus: "no-label", secret: false }),
+  fixtureItem({ siteId: "site-nova", itemId: "nov-001", siteName: "Project Nova", libraryName: "Launch", fileName: "Launch-Readiness.xlsx", filePath: "/Launch/PMO/Launch-Readiness.xlsx", scanStatus: "success", label: "Confidential" }),
+  fixtureItem({ siteId: "site-nova", itemId: "nov-002", siteName: "Project Nova", libraryName: "Commercial", fileName: "Pricing-Scenario.xlsx", filePath: "/Commercial/Finance/Pricing-Scenario.xlsx", scanStatus: "success", label: "Secret", assignmentMethod: "auto" }),
+  fixtureItem({ siteId: "site-nova", itemId: "nov-003", siteName: "Project Nova", libraryName: "Media", fileName: "Launch-Reel.mov", filePath: "/Media/Launch-Reel.mov", scanStatus: "unsupported", errorCode: "unsupportedFileType" }),
+  fixtureItem({ siteId: "site-nova", itemId: "nov-004", siteName: "Project Nova", libraryName: "Launch", fileName: "Roadmap.pptx", filePath: "/Launch/Roadmap.pptx", scanStatus: "no-label" }),
 
-  fixtureItem({ siteId: "site-consumer", itemId: "con-001", siteName: "Consumer Markets", libraryName: "Insights", fileName: "Customer-Segmentation.xlsx", filePath: "/Insights/Research/Customer-Segmentation.xlsx", scanStatus: "success", secret: true }),
-  fixtureItem({ siteId: "site-consumer", itemId: "con-002", siteName: "Consumer Markets", libraryName: "Campaigns", fileName: "Q4-Campaign-Plan.pptx", filePath: "/Campaigns/Q4/Q4-Campaign-Plan.pptx", scanStatus: "failed", secret: true, scannedAt: "2026-07-11T07:00:00Z", errorCode: "extractFailed", errorMessage: "Previous Secret label retained after a transient extraction failure" }),
-  fixtureItem({ siteId: "site-consumer", itemId: "con-003", siteName: "Consumer Markets", libraryName: "Brand", fileName: "Brand-Guidelines.pdf", filePath: "/Brand/Brand-Guidelines.pdf", scanStatus: "no-label", secret: false }),
-  fixtureItem({ siteId: "site-consumer", itemId: "con-004", siteName: "Consumer Markets", libraryName: "Contracts", fileName: "Agency-Rate-Card.pdf", filePath: "/Contracts/Agency-Rate-Card.pdf", scanStatus: "success", secret: true, assignmentMethod: "auto" }),
+  fixtureItem({ siteId: "site-consumer", itemId: "con-001", siteName: "Consumer Markets", libraryName: "Insights", fileName: "Customer-Segmentation.xlsx", filePath: "/Insights/Research/Customer-Segmentation.xlsx", scanStatus: "success", label: "Confidential" }),
+  fixtureItem({ siteId: "site-consumer", itemId: "con-002", siteName: "Consumer Markets", libraryName: "Campaigns", fileName: "Q4-Campaign-Plan.pptx", filePath: "/Campaigns/Q4/Q4-Campaign-Plan.pptx", scanStatus: "failed", label: "Secret", scannedAt: "2026-07-11T07:00:00Z", errorCode: "extractFailed", errorMessage: "Previous sensitivity label retained after a transient extraction failure" }),
+  fixtureItem({ siteId: "site-consumer", itemId: "con-003", siteName: "Consumer Markets", libraryName: "Brand", fileName: "Brand-Guidelines.pdf", filePath: "/Brand/Brand-Guidelines.pdf", scanStatus: "no-label" }),
+  fixtureItem({ siteId: "site-consumer", itemId: "con-004", siteName: "Consumer Markets", libraryName: "Contracts", fileName: "Agency-Rate-Card.pdf", filePath: "/Contracts/Agency-Rate-Card.pdf", scanStatus: "success", label: "Secret", assignmentMethod: "auto" }),
 
-  fixtureItem({ siteId: "site-ledger", itemId: "led-001", siteName: "Project Ledger", libraryName: "Finance", fileName: "Cashflow-Forecast.xlsx", filePath: "/Finance/Forecast/Cashflow-Forecast.xlsx", scanStatus: "success", secret: true }),
-  fixtureItem({ siteId: "site-ledger", itemId: "led-002", siteName: "Project Ledger", libraryName: "Audit", fileName: "Audit-Findings-2026.docx", filePath: "/Audit/Restricted/Audit-Findings-2026.docx", scanStatus: "success", secret: true, assignmentMethod: "privileged" }),
-  fixtureItem({ siteId: "site-ledger", itemId: "led-003", siteName: "Project Ledger", libraryName: "Payroll", fileName: "Payroll-Exceptions.xlsx", filePath: "/Payroll/Payroll-Exceptions.xlsx", scanStatus: "throttled", secret: true, scannedAt: "2026-07-13T01:30:00Z", errorCode: "429", errorMessage: "Retry scheduled after Graph throttling" }),
-  fixtureItem({ siteId: "site-ledger", itemId: "led-004", siteName: "Project Ledger", libraryName: "Documents", fileName: "Finance-Handbook.pdf", filePath: "/Documents/Finance-Handbook.pdf", scanStatus: "no-label", secret: false }),
-  fixtureItem({ siteId: "site-ledger", itemId: "led-005", siteName: "Project Ledger", libraryName: "Archive", fileName: "Legacy-Ledger.mdb", filePath: "/Archive/Legacy-Ledger.mdb", scanStatus: "unsupported", secret: false, errorCode: "unsupportedFileType" }),
+  fixtureItem({ siteId: "site-ledger", itemId: "led-001", siteName: "Project Ledger", libraryName: "Finance", fileName: "Cashflow-Forecast.xlsx", filePath: "/Finance/Forecast/Cashflow-Forecast.xlsx", scanStatus: "success", label: "Confidential" }),
+  fixtureItem({ siteId: "site-ledger", itemId: "led-002", siteName: "Project Ledger", libraryName: "Audit", fileName: "Audit-Findings-2026.docx", filePath: "/Audit/Restricted/Audit-Findings-2026.docx", scanStatus: "success", label: "Secret", assignmentMethod: "privileged" }),
+  fixtureItem({ siteId: "site-ledger", itemId: "led-003", siteName: "Project Ledger", libraryName: "Payroll", fileName: "Payroll-Exceptions.xlsx", filePath: "/Payroll/Payroll-Exceptions.xlsx", scanStatus: "throttled", label: "Secret", scannedAt: "2026-07-13T01:30:00Z", errorCode: "429", errorMessage: "Retry scheduled after Graph throttling" }),
+  fixtureItem({ siteId: "site-ledger", itemId: "led-004", siteName: "Project Ledger", libraryName: "Documents", fileName: "Finance-Handbook.pdf", filePath: "/Documents/Finance-Handbook.pdf", scanStatus: "no-label" }),
+  fixtureItem({ siteId: "site-ledger", itemId: "led-005", siteName: "Project Ledger", libraryName: "Archive", fileName: "Legacy-Ledger.mdb", filePath: "/Archive/Legacy-Ledger.mdb", scanStatus: "unsupported", errorCode: "unsupportedFileType" }),
 
-  fixtureItem({ siteId: "site-supply", itemId: "sup-001", siteName: "Supply Excellence", libraryName: "Operations", fileName: "Warehouse-Checklist.xlsx", filePath: "/Operations/Warehouse-Checklist.xlsx", scanStatus: "no-label", secret: false }),
-  fixtureItem({ siteId: "site-supply", itemId: "sup-002", siteName: "Supply Excellence", libraryName: "Documents", fileName: "Supplier-Onboarding.pdf", filePath: "/Documents/Supplier-Onboarding.pdf", scanStatus: "no-label", secret: false }),
-  fixtureItem({ siteId: "site-supply", itemId: "sup-003", siteName: "Supply Excellence", libraryName: "Media", fileName: "Safety-Training.mp4", filePath: "/Media/Safety-Training.mp4", scanStatus: "unsupported", secret: false }),
+  fixtureItem({ siteId: "site-supply", itemId: "sup-001", siteName: "Supply Excellence", libraryName: "Operations", fileName: "Warehouse-Checklist.xlsx", filePath: "/Operations/Warehouse-Checklist.xlsx", scanStatus: "no-label" }),
+  fixtureItem({ siteId: "site-supply", itemId: "sup-002", siteName: "Supply Excellence", libraryName: "Documents", fileName: "Supplier-Onboarding.pdf", filePath: "/Documents/Supplier-Onboarding.pdf", scanStatus: "no-label" }),
+  fixtureItem({ siteId: "site-supply", itemId: "sup-003", siteName: "Supply Excellence", libraryName: "Media", fileName: "Safety-Training.mp4", filePath: "/Media/Safety-Training.mp4", scanStatus: "unsupported" }),
 ];
 
 export const scanRuns: SensitivityScanRun[] = [
@@ -261,7 +265,7 @@ export const scanRuns: SensitivityScanRun[] = [
     targetSiteIds: ["site-aurora", "site-nova", "site-consumer", "site-ledger", "site-supply"],
     scannedCount: 20,
     changedCount: 8,
-    secretCount: 10,
+    sensitiveCount: 10,
     noLabelCount: 6,
     lockedCount: 1,
     throttledCount: 0,
@@ -277,7 +281,7 @@ export const scanRuns: SensitivityScanRun[] = [
     targetSiteIds: ["site-aurora", "site-consumer"],
     scannedCount: 7,
     changedCount: 3,
-    secretCount: 5,
+    sensitiveCount: 5,
     noLabelCount: 1,
     lockedCount: 1,
     throttledCount: 0,

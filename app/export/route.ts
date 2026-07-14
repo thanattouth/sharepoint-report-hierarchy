@@ -9,7 +9,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": 'attachment; filename="secret-file-inventory.csv"',
+        "content-disposition": 'attachment; filename="sensitive-file-inventory.csv"',
         "cache-control": "private, no-store",
       },
     });
