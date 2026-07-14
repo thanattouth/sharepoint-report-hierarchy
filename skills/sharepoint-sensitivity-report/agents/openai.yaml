@@ -1,0 +1,4 @@
+interface:
+  display_name: "SharePoint Sensitivity Report"
+  short_description: "Build and evolve the scoped SharePoint report"
+  default_prompt: "Use $sharepoint-sensitivity-report to continue the report safely from the current requirements and milestone."
