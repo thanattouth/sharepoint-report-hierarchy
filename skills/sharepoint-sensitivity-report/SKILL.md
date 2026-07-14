@@ -79,14 +79,13 @@ Use the business-first editorial system in `../../DESIGN.md`:
 
 - Treat EVP, Department, Group, and Project as customer business scopes, not SharePoint hierarchy levels.
 - Never render flat SharePoint Sites as an expanded hierarchy tree; EVP scopes may contain thousands of Sites.
-- Default to the assigned root or roots and show only the current node's immediate children.
-- Use breadcrumbs for upward navigation and selecting a child to update the server-side hierarchy filter.
-- Provide a separate searchable, paginated Site Explorer for flat Sites mapped into the resolved scope.
-- Provide descendant search and paginate business nodes when one level can exceed the panel capacity.
-- Show each branch's distinct Secret count, descendant-site count, and direct-child count so users can choose where to drill next.
-- Derive navigation only from server-authorized rollups. Ignore or reject requested scope IDs outside `visibleNodeIds` and never use navigation state to broaden data scope.
-- Clear incompatible site and page filters when changing branch, while preserving relevant file filters.
-- Test root, branch, leaf, Site mapping, Site search, multi-assignment, and large-scope navigation without loading all nodes or Sites into the browser view.
+- Keep the company hierarchy as an authorization and aggregation model even when the main dashboard does not visualize the tree.
+- Prefer a compact resolved-scope proof on the main report: show the assigned business node or nodes, descendant inclusion, visible-node count, visible-Site count, and Secret count.
+- Make the searchable, paginated flat Site Explorer the primary navigation for report users.
+- Expose a full hierarchy navigator only for a concrete admin, configuration, or hierarchy-analysis task. Do not add one merely to prove authorization.
+- Derive scope summaries, Site rows, filters, and counts only from server-authorized rollups. Ignore or reject requested node IDs outside `visibleNodeIds` and never use UI state to broaden data scope.
+- Clear incompatible Site and page filters when changing an authorized branch filter, while preserving relevant file filters.
+- Prove root, branch, leaf, Site mapping, multi-assignment, cross-branch denial, and large-scope behavior in domain and rendered tests without loading all nodes or Sites into the browser view.
 
 For website work, also follow the available Sites building and hosting skills because `.openai/hosting.json` is present.
 

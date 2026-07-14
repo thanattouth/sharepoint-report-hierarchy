@@ -20,29 +20,25 @@ test("server-renders the scoped report prototype", async () => {
   assert.match(html, /<title>Sensitivity Report \| SharePoint Governance<\/title>/i);
   assert.match(html, /Secret file exposure/);
   assert.match(html, /SERVER FILTERED/);
-  assert.match(html, /Business visibility/);
-  assert.match(html, /FLAT SHAREPOINT INVENTORY/);
+  assert.match(html, /RESOLVED DEMO SCOPE/);
+  assert.match(html, /AUTHORIZED SHAREPOINT INVENTORY/);
   assert.match(html, /Scheduled cache/);
-  assert.doesNotMatch(html, /tree-line/);
+  assert.doesNotMatch(html, /Business visibility|scope-explorer|tree-line/);
   assert.match(html, /FY27-Strategy\.pdf/);
   assert.match(html, /Project Ledger/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
-test("hierarchy navigator renders one level at a time and supports descendant search", async () => {
-  const rootResponse = await render();
-  const rootHtml = await rootResponse.text();
-  const rootExplorer = rootHtml.match(/<article class="panel scope-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
-  assert.match(rootExplorer, /Corporate Services/);
-  assert.match(rootExplorer, /Commercial/);
-  assert.match(rootExplorer, /Operations &amp; Finance/);
-  assert.doesNotMatch(rootExplorer, /Project Aurora|Project Ledger/);
-
-  const searchResponse = await render("/?scopeQ=aurora");
-  const searchHtml = await searchResponse.text();
-  const searchExplorer = searchHtml.match(/<article class="panel scope-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
-  assert.match(searchExplorer, /Project Aurora/);
-  assert.doesNotMatch(searchExplorer, /Project Nova/);
+test("resolved scope proves EVP descendant visibility without rendering a tree", async () => {
+  const response = await render();
+  const html = await response.text();
+  const scopeSummary = html.match(/<section class="resolved-scope"[\s\S]*?<\/section>/)?.[0] ?? "";
+  assert.match(scopeSummary, /Corporate Services/);
+  assert.match(scopeSummary, /EVP/);
+  assert.match(scopeSummary, /6(?:<!-- -->)? Sites/);
+  assert.match(scopeSummary, /10<\/dd>/);
+  assert.match(scopeSummary, /SERVER RESOLVED/);
+  assert.doesNotMatch(html, /scopeQ|scope-breadcrumb|scope-row/);
 });
 
 test("SharePoint sites render as a separate searchable flat inventory", async () => {
@@ -51,8 +47,20 @@ test("SharePoint sites render as a separate searchable flat inventory", async ()
   const siteExplorer = html.match(/<article class="panel site-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
   assert.match(siteExplorer, /Commercial Leadership Hub/);
   assert.match(siteExplorer, /Awaiting scan/);
+  assert.match(siteExplorer, /BUSINESS MAPPING/);
+  assert.match(siteExplorer, /LAST SCANNED/);
   assert.match(siteExplorer, /Visibility มาจาก business mapping/);
   assert.doesNotMatch(siteExplorer, /Project Aurora/);
+});
+
+test("department persona sees only server-resolved descendant Sites", async () => {
+  const response = await render("/?user=anan%40contoso.com&capability=ReportViewer");
+  const html = await response.text();
+  assert.match(html, /Commercial/);
+  assert.match(html, /Commercial Leadership Hub/);
+  assert.match(html, /Project Aurora/);
+  assert.match(html, /Consumer Markets/);
+  assert.doesNotMatch(html, /Project Ledger|Supply Excellence/);
 });
 
 test("project persona receives only its server-resolved site", async () => {
