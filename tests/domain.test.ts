@@ -111,6 +111,25 @@ test("counts reconcile with distinct filtered file rows", () => {
   assert.ok(filtered.rows.every((row) => row.siteId === "site-aurora"));
 });
 
+test("hierarchy rollups expose scalable navigation metadata", () => {
+  const report = buildReport(source, request("nipaporn@contoso.com"));
+  const root = report.hierarchyRollups.find((node) => node.nodeId === "evp-corporate");
+  const commercial = report.hierarchyRollups.find((node) => node.nodeId === "dept-commercial");
+
+  assert.deepEqual(
+    { parentId: root?.parentId, siteCount: root?.siteCount, childCount: root?.childCount },
+    { parentId: undefined, siteCount: 5, childCount: 2 },
+  );
+  assert.deepEqual(
+    {
+      parentId: commercial?.parentId,
+      siteCount: commercial?.siteCount,
+      childCount: commercial?.childCount,
+    },
+    { parentId: "evp-corporate", siteCount: 3, childCount: 2 },
+  );
+});
+
 test("zero-secret scope is distinct from no scan", () => {
   assert.equal(buildReport(source, request("siriporn@contoso.com")).state, "zero-secret");
   assert.equal(

@@ -20,9 +20,27 @@ test("server-renders the scoped report prototype", async () => {
   assert.match(html, /<title>Sensitivity Report \| SharePoint Governance<\/title>/i);
   assert.match(html, /Secret file exposure/);
   assert.match(html, /SERVER FILTERED/);
+  assert.match(html, /Scope navigator/);
+  assert.doesNotMatch(html, /tree-line/);
   assert.match(html, /FY27-Strategy\.pdf/);
   assert.match(html, /Project Ledger/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
+});
+
+test("hierarchy navigator renders one level at a time and supports descendant search", async () => {
+  const rootResponse = await render();
+  const rootHtml = await rootResponse.text();
+  const rootExplorer = rootHtml.match(/<article class="panel scope-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
+  assert.match(rootExplorer, /Corporate Services/);
+  assert.match(rootExplorer, /Commercial/);
+  assert.match(rootExplorer, /Operations &amp; Finance/);
+  assert.doesNotMatch(rootExplorer, /Project Aurora|Project Ledger/);
+
+  const searchResponse = await render("/?scopeQ=aurora");
+  const searchHtml = await searchResponse.text();
+  const searchExplorer = searchHtml.match(/<article class="panel scope-explorer"[\s\S]*?<\/article>/)?.[0] ?? "";
+  assert.match(searchExplorer, /Project Aurora/);
+  assert.doesNotMatch(searchExplorer, /Project Nova/);
 });
 
 test("project persona receives only its server-resolved site", async () => {

@@ -72,6 +72,17 @@ Use the business-first editorial system in `../../DESIGN.md`:
 - Avoid decorative gradients, illustrations, playful card-game motifs, offset shadows, excess rounding, and static indigo decoration.
 - Preserve keyboard navigation, accessible labels, focus rings, table semantics, and responsive layouts.
 
+### Scale hierarchy navigation
+
+- Never render every visible hierarchy node as one expanded tree; EVP scopes may contain thousands of sites.
+- Default to the assigned root or roots and show only the current node's immediate children.
+- Use breadcrumbs for upward navigation and selecting a child to update the server-side hierarchy filter.
+- Provide descendant search and paginate node results when one level can exceed the panel capacity.
+- Show each branch's distinct Secret count, descendant-site count, and direct-child count so users can choose where to drill next.
+- Derive navigation only from server-authorized rollups. Ignore or reject requested scope IDs outside `visibleNodeIds` and never use navigation state to broaden data scope.
+- Clear incompatible site and page filters when changing branch, while preserving relevant file filters.
+- Test root, branch, leaf, search, multi-assignment, and large-sibling navigation behavior without loading all nodes into the browser view.
+
 For website work, also follow the available Sites building and hosting skills because `.openai/hosting.json` is present.
 
 ## Validate changes

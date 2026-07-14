@@ -51,10 +51,13 @@ export type ReportData = {
   pageCount: number;
   hierarchyRollups: Array<{
     nodeId: string;
+    parentId?: string;
     name: string;
     type: GovernanceHierarchyNode["type"];
     depth: number;
     count: number;
+    siteCount: number;
+    childCount: number;
   }>;
   siteRollups: Array<{ siteId: string; siteName: string; count: number }>;
   libraryRollups: Array<{
@@ -226,10 +229,13 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     const siteIds = new Set(siteIdsUnderNode(node.id, source.nodes, scope.visibleNodeIds));
     return {
       nodeId: node.id,
+      parentId: node.parentId,
       name: node.name,
       type: node.type,
       depth: nodeDepth(node.id),
       count: dedupe(filtered.filter((item) => siteIds.has(item.siteId))).length,
+      siteCount: siteIds.size,
+      childCount: visibleNodes.filter((candidate) => candidate.parentId === node.id).length,
     };
   });
 
