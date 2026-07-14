@@ -38,10 +38,10 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       images: [
         {
-          url: new URL("/og.png", baseUrl).toString(),
-          width: 1731,
-          height: 909,
-          alt: "SharePoint Sensitivity Label Report dashboard preview",
+          url: new URL("/og-flip7.png", baseUrl).toString(),
+          width: 1729,
+          height: 910,
+          alt: "Retro-playful SharePoint Sensitivity Label Report preview",
         },
       ],
     },
@@ -49,7 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: [new URL("/og.png", baseUrl).toString()],
+      images: [new URL("/og-flip7.png", baseUrl).toString()],
     },
   };
 }
