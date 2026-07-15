@@ -77,6 +77,12 @@ Enforce all of these on every change:
   names, a hard limit of at most 20 files per library, a delta-page ceiling, and bounded
   concurrency. Never download content or persist cursors/inventory from this diagnostic.
   Treat its file-level output as sensitive operator-only metadata.
+- Persist a bounded pilot only after explicit customer approval for that Site, libraries, and
+  cache. Use an isolated customer-owned store, keep the same hard Graph bounds, write inventory
+  before the terminal run record, and never save a delta cursor from a truncated traversal.
+- For Azure Table, partition inventory by `tenantId + siteId`, key rows by
+  `driveId + itemId`, strip service metadata in adapters, and materialize Site/label summaries
+  for report queries. Do not render a large dashboard by enumerating every Site partition.
 - Record production-critical permission, storage, schema, retention, and deployment decisions in ADRs/runbooks. Require a migration and rollback plan for persistent schema changes.
 - Review dependency vulnerabilities before a release; do not apply breaking automated fixes without validating the Sites build and runtime.
 

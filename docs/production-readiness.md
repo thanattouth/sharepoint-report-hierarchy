@@ -13,12 +13,17 @@ This repository is an evolving production product, not a disposable prototype.
 - Keep secrets and sensitive file metadata out of browser code and operational logs.
 - Require migrations, rollback steps, observability, retention, and ownership before a
   persistent store is promoted to production.
+- Provision scanner persistence as isolated customer-owned infrastructure from IaC. Use Entra
+  token authorization, keep shared keys disabled, and materialize report query patterns instead
+  of relying on broad Azure Table scans.
 - Run lint, type check, unit/rendered tests, build, and dependency audit before release.
 
 ## Dependency security baseline — 2026-07-14
 
 Build tooling was updated to remove all high and critical findings reported by `npm audit`.
-Two moderate findings remain in Next.js's nested PostCSS dependency. npm currently proposes
+The production dependency audit reports two moderate findings in Next.js's nested PostCSS
+dependency; the complete dependency-tree audit reports four moderate findings through the
+same chain. npm currently proposes
 an incompatible Next.js downgrade as the only automatic fix, so it was not applied. Track a
 compatible upstream Next.js release, reassess the advisory's runtime reachability, and rerun
 the full Sites build before upgrading. Never use `npm audit fix --force` without reviewing

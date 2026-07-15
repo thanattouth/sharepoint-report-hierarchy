@@ -18,12 +18,15 @@ export class AzureIdentityGraphTokenProvider implements GraphAccessTokenProvider
   }
 }
 
-export function createGraphTokenProvider(config: GraphPilotAuthConfig) {
-  const credential = config.mode === "client-secret"
+export function createAzureCredential(config: GraphPilotAuthConfig): TokenCredential {
+  return config.mode === "client-secret"
     ? new ClientSecretCredential(config.tenantId, config.clientId, config.clientSecret)
     : new DefaultAzureCredential({
         tenantId: config.tenantId,
         managedIdentityClientId: config.managedIdentityClientId,
       });
-  return new AzureIdentityGraphTokenProvider(credential);
+}
+
+export function createGraphTokenProvider(config: GraphPilotAuthConfig) {
+  return new AzureIdentityGraphTokenProvider(createAzureCredential(config));
 }

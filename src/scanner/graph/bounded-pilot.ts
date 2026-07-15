@@ -16,11 +16,14 @@ export type BoundedPilotOutcome = {
   itemId: string;
   fileName: string;
   filePath: string;
+  fileWebUrl?: string;
+  modifiedAt?: string;
   status: "success" | "no-label" | "locked" | "throttled" | "unsupported" | "failed";
   labels: Array<{
     id: string;
     displayName?: string;
     assignmentMethod?: string;
+    tenantId?: string;
   }>;
   graphStatus?: number;
   graphCode?: string;
@@ -113,6 +116,8 @@ async function extract(
     itemId: item.id,
     fileName: item.name ?? item.id,
     filePath: filePath(item),
+    fileWebUrl: item.webUrl,
+    modifiedAt: item.lastModifiedDateTime,
     labels: [],
   } satisfies Omit<BoundedPilotOutcome, "status">;
   try {
@@ -126,6 +131,7 @@ async function extract(
             id: label.sensitivityLabelId,
             displayName: config.reportableLabelNames.get(label.sensitivityLabelId),
             assignmentMethod: label.assignmentMethod,
+            tenantId: label.tenantId,
           }]
         : [],
     );
@@ -147,7 +153,7 @@ async function runLibrary(options: BoundedPilotOptions, drive: GraphDrive) {
   const files: GraphDriveItem[] = [];
   let metadataItemsRead = 0;
   let deltaPagesRead = 0;
-  let next: string | undefined = `/drives/${encoded(drive.id)}/root/delta?$select=id,name,file,folder,parentReference&$top=${options.maxFilesPerLibrary}`;
+  let next: string | undefined = `/drives/${encoded(drive.id)}/root/delta?$select=id,name,webUrl,lastModifiedDateTime,file,folder,parentReference&$top=${options.maxFilesPerLibrary}`;
 
   while (next && files.length < options.maxFilesPerLibrary
     && deltaPagesRead < options.maxDeltaPagesPerLibrary) {

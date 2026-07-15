@@ -13,10 +13,12 @@
     "test:unit": "node --import tsx --test tests/*.test.ts",
     "p4:check": "node --import tsx scripts/p4-connection-check.ts",
     "p4:bounded": "node --import tsx scripts/p4-bounded-pilot.ts",
+    "p5:persist-bounded": "node --import tsx scripts/p5-persist-bounded-pilot.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
+    "@azure/data-tables": "^13.3.2",
     "@azure/identity": "^4.13.1",
     "next": "16.2.6",
     "react": "19.2.6",
