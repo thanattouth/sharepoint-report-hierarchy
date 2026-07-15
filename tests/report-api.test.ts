@@ -4,6 +4,7 @@ import {
   loadReportApiConfig,
   parseReportApiRequest,
   ReportApiRequestError,
+  selectAllowedPilotPersonas,
 } from "../src/report/api-config";
 
 test("report API requires an explicit pilot UPN allowlist", () => {
@@ -41,5 +42,26 @@ test("report API fixes capability and scenario while validating filters", () => 
       config,
     ),
     /status is invalid/,
+  );
+});
+
+test("Azure API persona selector exposes only the configured pilot allowlist", () => {
+  const config = loadReportApiConfig({
+    REPORT_PILOT_ALLOWED_UPNS: "evp@example.com,project@example.com",
+  });
+  assert.deepEqual(
+    selectAllowedPilotPersonas([
+      { upn: "other@example.com", name: "Other" },
+      { upn: "project@example.com", name: "Project" },
+      { upn: "evp@example.com", name: "EVP" },
+    ], config),
+    [
+      { upn: "evp@example.com", name: "EVP" },
+      { upn: "project@example.com", name: "Project" },
+    ],
+  );
+  assert.throws(
+    () => selectAllowedPilotPersonas([], config),
+    /has no configured demo persona/,
   );
 });

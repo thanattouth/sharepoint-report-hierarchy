@@ -100,8 +100,8 @@ all four report-cache tables.
   returned `no-sites`; the unassigned persona returned `no-assignment`.
 - Sites integration: the Function key is stored as a Sites server-side secret; the endpoint, mode,
   and timeout are runtime environment values. Local Worker verification rendered the Azure API
-  mode with 12 sensitive files and rejected API redirects without forwarding the key. The source
-  is ready for an owner-only Sites deployment.
+  mode with 12 sensitive files, limits the selector to the API persona allowlist, and rejected API
+  redirects without forwarding the key. The source is ready for an owner-only Sites deployment.
 
 ## References
 

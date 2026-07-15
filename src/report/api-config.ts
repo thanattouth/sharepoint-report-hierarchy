@@ -42,6 +42,22 @@ export function loadReportApiConfig(
   return { allowedPilotUpns };
 }
 
+export function selectAllowedPilotPersonas<T extends { upn: string }>(
+  personas: T[],
+  config: ReportApiConfig,
+): T[] {
+  const byUpn = new Map(
+    personas.map((persona) => [persona.upn.toLocaleLowerCase(), persona]),
+  );
+  return [...config.allowedPilotUpns].map((upn) => {
+    const persona = byUpn.get(upn);
+    if (!persona) {
+      throw new Error(`Allowed pilot UPN ${upn} has no configured demo persona`);
+    }
+    return persona;
+  });
+}
+
 function optional(value: string | null, maximum: number, name: string) {
   const result = value?.trim();
   if (!result) return undefined;

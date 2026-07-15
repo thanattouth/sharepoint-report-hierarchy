@@ -2,6 +2,10 @@ import "server-only";
 
 import type { AppCapability, ScanStatus } from "../domain/types";
 import { demoPersonas } from "../fixtures/data";
+import {
+  loadReportApiConfig,
+  selectAllowedPilotPersonas,
+} from "./api-config";
 import { fetchReportFromApi } from "./api-client";
 import { loadReportCacheConfig } from "./cache-config";
 import {
@@ -20,7 +24,10 @@ function single(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function parseReportRequest(params: RawSearchParams) {
+export function parseReportRequest(
+  params: RawSearchParams,
+  defaultUserUpn = "nipaporn@contoso.com",
+) {
   const scenarioValues: DemoScenario[] = ["current", "partial", "stale", "no-scan", "cache-error"];
   const statusValues: ScanStatus[] = ["success", "no-label", "unsupported", "locked", "throttled", "failed"];
   const scenarioValue = single(params.scenario) as DemoScenario | undefined;
@@ -42,7 +49,7 @@ export function parseReportRequest(params: RawSearchParams) {
     pageSize: 6,
   };
   return {
-    userUpn: single(params.user) ?? "nipaporn@contoso.com",
+    userUpn: single(params.user) ?? defaultUserUpn,
     capability: (capabilityValue === "ReportViewer" ? "ReportViewer" : "ReportAdmin") as AppCapability,
     scenario:
       scenarioValue && scenarioValues.includes(scenarioValue) ? scenarioValue : "current",
@@ -52,7 +59,10 @@ export function parseReportRequest(params: RawSearchParams) {
 
 export async function loadReportPage(params: RawSearchParams): Promise<ReportData> {
   const cacheConfig = loadReportCacheConfig(process.env);
-  const parsed = parseReportRequest(params);
+  const defaultUserUpn = cacheConfig.mode === "azure-api"
+    ? [...loadReportApiConfig(process.env).allowedPilotUpns][0]
+    : undefined;
+  const parsed = parseReportRequest(params, defaultUserUpn);
   if (cacheConfig.mode === "azure-api") {
     return fetchReportFromApi(
       cacheConfig,
@@ -67,7 +77,11 @@ export async function loadReportPage(params: RawSearchParams): Promise<ReportDat
 }
 
 export async function getDemoOptions() {
-  return structuredClone(demoPersonas);
+  const cacheConfig = loadReportCacheConfig(process.env);
+  if (cacheConfig.mode !== "azure-api") return structuredClone(demoPersonas);
+  return structuredClone(
+    selectAllowedPilotPersonas(demoPersonas, loadReportApiConfig(process.env)),
+  );
 }
 
 export function getReportMode() {
