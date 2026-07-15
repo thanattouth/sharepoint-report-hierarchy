@@ -12,6 +12,7 @@
     "test": "npm run test:unit && npm run build && node --test tests/rendered-html.test.mjs",
     "test:unit": "node --import tsx --test tests/*.test.ts",
     "p4:check": "node --import tsx scripts/p4-connection-check.ts",
+    "p4:bounded": "node --import tsx scripts/p4-bounded-pilot.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

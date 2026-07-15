@@ -53,6 +53,25 @@ tenant must never be accepted implicitly.
 Only proceed to the scanner executor after this check succeeds and a durable store adapter
 is configured.
 
+## Bounded extraction pilot
+
+Use `npm run p4:bounded` only after the safe connection check succeeds and the customer
+explicitly approves the exact Site and library names. Configure:
+
+- `P4_PILOT_LIBRARY_NAMES` as a comma-separated exact library allowlist.
+- `P4_PILOT_MAX_FILES_PER_LIBRARY` from 1 to 20.
+- `P4_PILOT_MAX_DELTA_PAGES_PER_LIBRARY` from 1 to 10.
+
+The runner reuses production app-only authentication, retry handling, and bounded
+concurrency. It reads delta metadata only until a hard ceiling is reached and calls
+`extractSensitivityLabels` only for the selected files. It never downloads content or
+writes inventory/cursor state.
+
+The command intentionally prints authorized file names, paths, item outcomes, and label
+metadata for pilot reconciliation. Run it only in a private operator terminal; never put
+its output in shared CI logs, tickets, or public artifacts. A completed diagnostic pilot
+does not replace the durable scheduled scanner or its storage/audit controls.
+
 ## Safe execution sequence
 
 1. Validate configuration and confirm the requested Site equals the allowlist.

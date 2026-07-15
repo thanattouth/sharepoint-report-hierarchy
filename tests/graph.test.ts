@@ -8,6 +8,7 @@ import type {
 } from "../src/domain/types";
 import { mapWithConcurrency } from "../src/scanner/bounded-concurrency";
 import { loadGraphPilotConfig, ScannerConfigurationError } from "../src/scanner/graph/config";
+import { runBoundedPilot } from "../src/scanner/graph/bounded-pilot";
 import {
   GraphClient,
   GraphRequestError,
@@ -132,6 +133,63 @@ test("bounded concurrency never exceeds the configured worker count", async () =
   });
   assert.equal(peak, 2);
   assert.deepEqual(values, [2, 4, 6, 8, 10]);
+});
+
+test("bounded pilot scans only named libraries and enforces the per-library file cap", async () => {
+  const requests: Array<{ path: string; method?: string }> = [];
+  const graph = {
+    async request(path: string, init?: RequestInit) {
+      requests.push({ path, method: init?.method });
+      if (path.includes("/drives?$select=")) {
+        return {
+          value: [
+            { id: "drive-secret", name: "Secret" },
+            { id: "drive-confidential", name: "Confidential" },
+            { id: "drive-other", name: "Other" },
+          ],
+        };
+      }
+      if (path.includes("drive-secret/root/delta")) {
+        return {
+          value: [
+            { id: "folder", name: "Folder", folder: {} },
+            { id: "s1", name: "one.docx", file: {} },
+            { id: "s2", name: "two.pptx", file: {} },
+            { id: "s3", name: "three.xlsx", file: {} },
+          ],
+        };
+      }
+      if (path.includes("drive-confidential/root/delta")) {
+        return { value: [{ id: "c1", name: "four.docx", file: {} }] };
+      }
+      if (path.includes("extractSensitivityLabels")) {
+        return { value: { labels: [{ sensitivityLabelId: CONFIDENTIAL_LABEL_ID }] } };
+      }
+      throw new Error(`Unexpected Graph request: ${path}`);
+    },
+  } as GraphClient;
+
+  const results = await runBoundedPilot({
+    graph,
+    config: scannerConfig(),
+    libraryNames: ["Secret", "Confidential"],
+    maxFilesPerLibrary: 2,
+    maxDeltaPagesPerLibrary: 1,
+  });
+
+  assert.deepEqual(results.map((result) => result.selectedFileCount), [2, 1]);
+  assert.equal(requests.filter((request) => request.method === "POST").length, 3);
+  assert.ok(!requests.some((request) => request.path.includes("drive-other/root/delta")));
+  await assert.rejects(
+    () => runBoundedPilot({
+      graph,
+      config: scannerConfig(),
+      libraryNames: ["Secret"],
+      maxFilesPerLibrary: 21,
+      maxDeltaPagesPerLibrary: 1,
+    }),
+    /maxFilesPerLibrary/,
+  );
 });
 
 class MemoryInventoryStore implements InventoryStore {

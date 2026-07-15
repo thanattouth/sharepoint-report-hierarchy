@@ -73,6 +73,10 @@ Enforce all of these on every change:
 - Treat delta processing as at-least-once: apply idempotent inventory changes before saving the cursor, and never advance it after a persistence failure.
 - Log operational identifiers, status, attempt, duration, and Graph request ID without tokens, secrets, file names, paths, or query-string delta tokens.
 - Add contract tests for retries, throttling, locked files, partial runs, storage failure, cursor safety, configuration rejection, and cross-Site denial.
+- For a live bounded diagnostic pilot, require an exact Site allowlist, exact library
+  names, a hard limit of at most 20 files per library, a delta-page ceiling, and bounded
+  concurrency. Never download content or persist cursors/inventory from this diagnostic.
+  Treat its file-level output as sensitive operator-only metadata.
 - Record production-critical permission, storage, schema, retention, and deployment decisions in ADRs/runbooks. Require a migration and rollback plan for persistent schema changes.
 - Review dependency vulnerabilities before a release; do not apply breaking automated fixes without validating the Sites build and runtime.
 
