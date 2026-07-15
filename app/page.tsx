@@ -81,6 +81,11 @@ export default async function Home({
     reportMode = getReportMode();
     report = await loadReportPage(params);
   } catch (error) {
+    console.error({
+      event: "report-page-load-failed",
+      errorType: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message.slice(0, 200) : "Unknown report error",
+    });
     loadError = error instanceof ReportAuthorizationError ? "denied" : "cache";
   }
 

@@ -53,9 +53,15 @@ export async function fetchReportFromApi(
       Accept: "application/json",
       "x-functions-key": config.functionKey,
     },
-    redirect: "error",
+    // Workerd does not implement redirect="error". Manual mode preserves the
+    // same security boundary: the Function key is never forwarded to another
+    // origin, and every redirect is rejected below.
+    redirect: "manual",
     signal: AbortSignal.timeout(config.timeoutMs),
   });
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error("Report API redirects are not allowed");
+  }
   if (response.status === 401 || response.status === 403) {
     throw new ReportAuthorizationError();
   }

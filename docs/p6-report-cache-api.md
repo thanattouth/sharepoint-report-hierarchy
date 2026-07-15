@@ -34,11 +34,15 @@ npm run p6:api:publish:local
 ```
 
 `p6:api:publish:local` fails closed unless every required role exists at the exact resource
-scope. It does not accept an inherited broad role as a production shortcut.
+scope. It does not accept an inherited broad role as a production shortcut. The command publishes
+with Azure Functions One Deploy (`az functionapp deployment source config-zip`), the supported
+package deployment path for Flex Consumption.
 
 ## Required RBAC
 
-An authorized Owner or User Access Administrator must create these assignments:
+An authorized Role Based Access Control Administrator, User Access Administrator, or Owner must
+create these assignments. Grant the administrator role at the smallest practical scope and remove
+temporary elevation after the assignments are verified:
 
 | Principal | Role | Exact scope |
 | --- | --- | --- |
@@ -89,9 +93,15 @@ all four report-cache tables.
 - Report-reader identity principal: `0b733b4f-6fb2-4e02-a401-3c3c677b9ac7`
 - Report-reader client ID: `20c4ca0f-0d43-49d3-a686-962f27538dc0`
 - Application Insights: `appi-sp-sens-report-zldde7q4v`, local authentication disabled.
-- Code package: built locally and guarded from publishing because the four roles are absent.
-- Sites: Azure API environment values and deployment intentionally not changed while RBAC is
-  incomplete.
+- Exact-scope RBAC: all four required assignments were created and verified.
+- Code package: published successfully with Azure Functions One Deploy.
+- Live API verification: `/api/health` returned HTTP 200 with `azure-table` mode. The approved EVP
+  and Project personas each returned one Site, 12 sensitive rows, and HTTP 200. The sibling persona
+  returned `no-sites`; the unassigned persona returned `no-assignment`.
+- Sites integration: the Function key is stored as a Sites server-side secret; the endpoint, mode,
+  and timeout are runtime environment values. Local Worker verification rendered the Azure API
+  mode with 12 sensitive files and rejected API redirects without forwarding the key. The source
+  is ready for an owner-only Sites deployment.
 
 ## References
 

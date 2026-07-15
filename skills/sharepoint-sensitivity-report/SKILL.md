@@ -100,9 +100,16 @@ Enforce all of these on every change:
   API in a compatible managed-identity runtime; never fall back to Shared Key or browser tokens.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
+- Publish Flex Consumption packages with Azure Functions One Deploy through
+  `az functionapp deployment source config-zip`. Do not use `az functionapp deploy --type zip`;
+  that path can target unsupported Zip Deploy behavior and return HTTP 415 on Flex Consumption.
 - Treat a Function key and selectable fixture UPN as a bounded test-data pilot only. Store the
   key as a Sites server secret and send it in a header, never a URL. Before production, require
   Microsoft Entra caller authorization and derive UPN from authenticated claims.
+- When a Sites/Cloudflare Worker calls the report API, use `redirect: "manual"` and reject every
+  3xx response before reading the body. Workerd does not implement `redirect: "error"`; never
+  switch to automatic redirect following because it could forward the Function key to another
+  origin.
 - Guard code publishing with exact-scope RBAC checks. When the deployer is only Contributor,
   provision with conditional role assignments disabled and stop before publishing until an
   authorized administrator grants the required roles.

@@ -25,6 +25,7 @@ const body = {
 test("Sites API client keeps the function key in a server-side header", async () => {
   let requestedUrl = "";
   let requestedKey: string | null = null;
+  let redirectMode: RequestRedirect | undefined;
   const report = await fetchReportFromApi(
     {
       mode: "azure-api",
@@ -36,6 +37,7 @@ test("Sites API client keeps the function key in a server-side header", async ()
     async (input, init) => {
       requestedUrl = input.toString();
       requestedKey = new Headers(init?.headers).get("x-functions-key");
+      redirectMode = init?.redirect;
       return Response.json(body);
     },
   );
@@ -44,4 +46,24 @@ test("Sites API client keeps the function key in a server-side header", async ()
   assert.match(requestedUrl, /site=site-1/);
   assert.doesNotMatch(requestedUrl, /server-secret/);
   assert.equal(requestedKey, "server-secret");
+  assert.equal(redirectMode, "manual");
+});
+
+test("Sites API client rejects redirects without forwarding the function key", async () => {
+  await assert.rejects(
+    fetchReportFromApi(
+      {
+        mode: "azure-api",
+        baseUrl: "https://report.example.com/api",
+        functionKey: "server-secret",
+        timeoutMs: 1000,
+      },
+      request,
+      async () => new Response(null, {
+        status: 302,
+        headers: { Location: "https://another.example.com/report" },
+      }),
+    ),
+    /redirects are not allowed/,
+  );
 });
