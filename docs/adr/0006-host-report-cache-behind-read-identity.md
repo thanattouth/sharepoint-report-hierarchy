@@ -13,10 +13,11 @@ credential model would either fail at runtime or invite an unsafe account-key wo
 
 ## Decision
 
-Keep the public report deployment fixture-backed until a production report cache boundary is
-available. Deploy the Azure Table adapter, or a narrow cache API, in an approved server-side
-runtime that supports Microsoft Entra workload identity. Grant that identity only `Storage Table
-Data Reader` on the isolated cache account.
+Use a narrow Azure Functions Flex Consumption API as the report cache boundary. Attach two
+user-assigned identities: a host identity for the dedicated Functions runtime storage and
+telemetry, and a report-reader identity granted only `Storage Table Data Reader` on the isolated
+cache. Keep the public report deployment fixture-backed until this API passes live authorization
+verification.
 
 The server-side boundary must:
 
@@ -30,14 +31,20 @@ The server-side boundary must:
 The scanner remains a separate workload with its approved Graph permission and Table write role.
 Neither identity may impersonate or substitute for the other.
 
+For the bounded no-login pilot, protect the API with a Function key stored only as a Sites
+server-side secret, fix API capability to `ReportViewer`, and allow only configured test personas.
+This proves the hosting path but is not production user authentication. Production must replace
+the Function key and persona query with Microsoft Entra caller authorization and an authenticated
+UPN.
+
 ## Consequences
 
 - The local Node pilot can prove cache decoding, projection, reconciliation, and authorization,
   but it is not the production hosting model.
 - Sites can remain the presentation host if it calls the narrow report API; alternatively the
   complete report can be hosted on an Azure runtime that supports the same workload identity.
-- Production deployment requires an additional identity, RBAC assignment, API/host choice,
-  authentication design, observability, and network/security review.
+- Production deployment requires Microsoft Entra caller authentication, removal of the persona
+  switch, RBAC review, observability, retention, and network/security review.
 - Shared Key, scanner credentials, developer CLI sessions, and browser-held Storage tokens are
   explicitly rejected as hosting shortcuts.
 
@@ -51,3 +58,5 @@ Neither identity may impersonate or substitute for the other.
   cache authorization boundary.
 - **Publish Azure mode directly to the current Sites worker:** rejected until that runtime has an
   approved workload-identity integration that preserves this decision.
+- **Give one identity both host-storage and report-cache roles:** rejected because runtime write
+  needs must not broaden the cache reader's data-plane capability.

@@ -18,6 +18,11 @@
     "p5:materialize-summary": "node --import tsx scripts/p5-materialize-site-summary.ts",
     "p5:materialize-summary:local": "node --env-file=.env.p4.local --import tsx scripts/p5-materialize-site-summary.ts",
     "p5:verify-report-cache:local": "node --env-file=.env.p4.local --import tsx scripts/p5-report-cache-check.ts",
+    "p6:api:build": "npm --prefix services/report-cache-api run build",
+    "p6:api:package": "node scripts/p6-package-report-api.mjs",
+    "p6:api:publish:local": "node --env-file=.env.p4.local --import tsx scripts/p6-publish-report-api.ts",
+    "p6:api:what-if:local": "node --env-file=.env.p4.local --import tsx scripts/p6-deploy-report-api.ts --what-if",
+    "p6:api:deploy:local": "node --env-file=.env.p4.local --import tsx scripts/p6-deploy-report-api.ts --deploy",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

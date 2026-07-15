@@ -40,3 +40,29 @@ test("report cache defaults to fixtures and Azure mode fails closed", () => {
     "22222222-2222-4222-8222-222222222222",
   ]);
 });
+
+test("report API mode requires an HTTPS endpoint and server-side key", () => {
+  assert.throws(
+    () => loadReportCacheConfig({ REPORT_DATA_SOURCE: "azure-api" }),
+    /REPORT_API_BASE_URL/,
+  );
+  assert.throws(
+    () => loadReportCacheConfig({
+      REPORT_DATA_SOURCE: "azure-api",
+      REPORT_API_BASE_URL: "http://example.com/api",
+      REPORT_API_FUNCTION_KEY: "secret",
+    }),
+    /must use HTTPS/,
+  );
+  const config = loadReportCacheConfig({
+    REPORT_DATA_SOURCE: "azure-api",
+    REPORT_API_BASE_URL: "https://report.example.com/api/",
+    REPORT_API_FUNCTION_KEY: "secret",
+  });
+  assert.deepEqual(config, {
+    mode: "azure-api",
+    baseUrl: "https://report.example.com/api",
+    functionKey: "secret",
+    timeoutMs: 10000,
+  });
+});

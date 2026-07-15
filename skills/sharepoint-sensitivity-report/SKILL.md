@@ -1,6 +1,6 @@
 ---
 name: sharepoint-sensitivity-report
-description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph pilot planning, Azure scheduled scanning, or milestone work from P0 through P5.
+description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph pilot planning, Azure scheduled scanning, report API hosting, or milestone work from P0 through P6.
 ---
 
 # SharePoint Sensitivity Report
@@ -27,6 +27,7 @@ Place the request in one category before editing:
 - **Scanner/contracts:** queueing, scan outcomes, retry policy, bounded concurrency, inventory, scan-run, or delta-state interfaces.
 - **P4 Graph pilot:** one approved non-production site using a separate scanner identity.
 - **P5 scheduled pilot:** Azure timer/queue operation after the P4 exit gate.
+- **P6 report API:** read-only Azure cache boundary and secure Sites integration.
 
 Keep work inside the current category unless the user explicitly expands scope.
 
@@ -97,6 +98,14 @@ Enforce all of these on every change:
   the scanner identity or a write-capable operator credential. If the website runtime cannot
   obtain an approved Entra token, keep Azure mode fail-closed and put a narrow server-side report
   API in a compatible managed-identity runtime; never fall back to Shared Key or browser tokens.
+- For Azure Functions, separate the host-storage identity from the cache-reader identity. The
+  reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
+- Treat a Function key and selectable fixture UPN as a bounded test-data pilot only. Store the
+  key as a Sites server secret and send it in a header, never a URL. Before production, require
+  Microsoft Entra caller authorization and derive UPN from authenticated claims.
+- Guard code publishing with exact-scope RBAC checks. When the deployer is only Contributor,
+  provision with conditional role assignments disabled and stop before publishing until an
+  authorized administrator grants the required roles.
 - Respect Azure separation of duties. If the infrastructure deployer cannot write role
   assignments, deploy storage without the conditional assignment and stop before data access
   until an authorized owner grants the scoped Table data role. Never enable Shared Key to bypass

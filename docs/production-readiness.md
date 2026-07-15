@@ -20,6 +20,10 @@ This repository is an evolving production product, not a disposable prototype.
   server-side boundary. Resolve authorized Site IDs before querying summaries or inventory.
 - Treat a runtime that cannot obtain the approved Entra workload token as unavailable and fail
   closed; never substitute the scanner credential, an account key, or a browser token.
+- Separate the Function host identity from the report-cache reader identity. Scope the reader to
+  `Storage Table Data Reader` on the cache account and keep host-storage write roles off it.
+- Treat Function-key + selectable-persona access as test-data pilot authentication only. Before
+  production, use Microsoft Entra caller authorization and derive UPN from authenticated claims.
 - Run lint, type check, unit/rendered tests, build, and dependency audit before release.
 
 ## Dependency security baseline — 2026-07-14

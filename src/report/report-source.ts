@@ -43,6 +43,9 @@ export async function loadReportSource(
       reportableLabelIds: REPORTABLE_LABEL_IDS,
     };
   }
+  if (cacheConfig.mode !== "azure-table") {
+    throw new Error("Azure API mode must be loaded through the server-side API client");
+  }
 
   if (!nodes.some((node) => node.id === cacheConfig.pilotSiteNodeId && node.active)) {
     throw new Error("REPORT_PILOT_SITE_NODE_ID must reference an active hierarchy node");

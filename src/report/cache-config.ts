@@ -8,6 +8,13 @@ type FixtureReportCacheConfig = {
   mode: "fixture";
 };
 
+export type AzureApiReportCacheConfig = {
+  mode: "azure-api";
+  baseUrl: string;
+  functionKey: string;
+  timeoutMs: number;
+};
+
 export type AzureReportCacheConfig = {
   mode: "azure-table";
   cacheTenantId: string;
@@ -19,7 +26,10 @@ export type AzureReportCacheConfig = {
   table: AzureTableStoreConfig;
 };
 
-export type ReportCacheConfig = FixtureReportCacheConfig | AzureReportCacheConfig;
+export type ReportCacheConfig =
+  | FixtureReportCacheConfig
+  | AzureApiReportCacheConfig
+  | AzureReportCacheConfig;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HOSTNAME_PATTERN = /^(?=.{1,253}$)(?!-)[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
@@ -40,8 +50,27 @@ export function loadReportCacheConfig(
 ): ReportCacheConfig {
   const mode = env.REPORT_DATA_SOURCE?.trim() || "fixture";
   if (mode === "fixture") return { mode };
+  if (mode === "azure-api") {
+    const baseUrl = new URL(required(env, "REPORT_API_BASE_URL"));
+    if (baseUrl.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(baseUrl.hostname)) {
+      throw new Error("REPORT_API_BASE_URL must use HTTPS outside local development");
+    }
+    if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
+      throw new Error("REPORT_API_BASE_URL must not contain credentials, a query, or a fragment");
+    }
+    const timeoutMs = Number(env.REPORT_API_TIMEOUT_MS ?? "10000");
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
+      throw new Error("REPORT_API_TIMEOUT_MS must be an integer from 1000 to 30000");
+    }
+    return {
+      mode,
+      baseUrl: baseUrl.toString().replace(/\/$/, ""),
+      functionKey: required(env, "REPORT_API_FUNCTION_KEY"),
+      timeoutMs,
+    };
+  }
   if (mode !== "azure-table") {
-    throw new Error("REPORT_DATA_SOURCE must be fixture or azure-table");
+    throw new Error("REPORT_DATA_SOURCE must be fixture, azure-api, or azure-table");
   }
 
   const hostname = required(env, "REPORT_PILOT_SITE_HOSTNAME");

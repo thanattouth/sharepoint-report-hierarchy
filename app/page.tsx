@@ -74,7 +74,7 @@ export default async function Home({
   const capability = getSingle(params.capability) === "ReportViewer" ? "ReportViewer" : "ReportAdmin";
   const scenario = getSingle(params.scenario) ?? "current";
   const persona = personas.find((candidate) => candidate.upn === selectedUser) ?? personas[0];
-  let reportMode: "fixture" | "azure-table" = "fixture";
+  let reportMode: "fixture" | "azure-api" | "azure-table" = "fixture";
   let report = null;
   let loadError: "denied" | "cache" | null = null;
   try {
@@ -86,8 +86,8 @@ export default async function Home({
 
   const preserved = {
     user: selectedUser,
-    capability,
-    scenario: reportMode === "azure-table" ? "current" : scenario,
+    capability: reportMode === "azure-api" ? "ReportViewer" : capability,
+    scenario: reportMode === "fixture" ? scenario : "current",
   };
   const exportParams = new URLSearchParams();
   for (const [key, raw] of Object.entries(params)) {
@@ -150,7 +150,7 @@ export default async function Home({
           </span>
           <div className="identity">
             <span className="avatar">{persona.initials}</span>
-            <span><strong>{persona.name}</strong><small>{capability}</small></span>
+            <span><strong>{persona.name}</strong><small>{report?.capability ?? capability}</small></span>
           </div>
         </div>
       </header>
@@ -165,19 +165,19 @@ export default async function Home({
               <p>ติดตาม Sensitivity Label จาก scheduled inventory ภายใน business scope ที่คุณรับผิดชอบ</p>
             </div>
             <div className="heading-actions">
-              {report?.capability === "ReportAdmin" && !["no-assignment", "no-sites"].includes(report.state) ? (
+              {reportMode !== "azure-api" && report?.capability === "ReportAdmin" && !["no-assignment", "no-sites"].includes(report.state) ? (
                 <a className="button button-secondary" href={`/export?${exportParams.toString()}`}>⇩ Export CSV</a>
               ) : (
                 <button className="button button-secondary" disabled title="ต้องใช้ ReportAdmin">⇩ Export CSV</button>
               )}
-              <RunNowButton userUpn={selectedUser} capability={capability} disabled={!report || ["no-assignment", "no-sites"].includes(report.state)} />
+              <RunNowButton userUpn={selectedUser} capability={capability} disabled={reportMode !== "fixture" || !report || ["no-assignment", "no-sites"].includes(report.state)} />
             </div>
           </section>
 
           <section className="demo-panel" aria-labelledby="demo-heading">
             <div className="demo-copy">
               <span className="demo-dot" aria-hidden="true" />
-              <div><strong id="demo-heading">{reportMode === "azure-table" ? "Azure cache pilot" : "Deterministic demo mode"}</strong><small>{reportMode === "azure-table" ? "ข้อมูลไฟล์มาจาก scheduled Azure Table cache · persona ยังใช้พิสูจน์ hierarchy scope" : "สลับ persona และ scan state เพื่อทดสอบ authorization"}</small></div>
+              <div><strong id="demo-heading">{reportMode === "azure-api" ? "Azure report API pilot" : reportMode === "azure-table" ? "Azure cache pilot" : "Deterministic demo mode"}</strong><small>{reportMode === "azure-api" ? "หน้าเว็บอ่าน scheduled cache ผ่าน read-only server boundary · persona ใช้พิสูจน์ hierarchy เท่านั้น" : reportMode === "azure-table" ? "ข้อมูลไฟล์มาจาก scheduled Azure Table cache · persona ยังใช้พิสูจน์ hierarchy scope" : "สลับ persona และ scan state เพื่อทดสอบ authorization"}</small></div>
             </div>
             <form className="demo-controls" method="get">
               <label>UPN
@@ -185,12 +185,12 @@ export default async function Home({
                   {personas.map((item) => <option key={item.upn} value={item.upn}>{item.name} — {item.role}</option>)}
                 </select>
               </label>
-              <label>App role
+              {reportMode === "azure-api" ? <input type="hidden" name="capability" value="ReportViewer" /> : <label>App role
                 <select name="capability" defaultValue={capability}>
                   <option value="ReportAdmin">ReportAdmin</option>
                   <option value="ReportViewer">ReportViewer</option>
                 </select>
-              </label>
+              </label>}
               {reportMode === "fixture" ? <label>Scan state
                 <select name="scenario" defaultValue={scenario}>
                   <option value="current">Current</option>
@@ -265,7 +265,7 @@ export default async function Home({
                       <div className="resolved-scope-main">
                         <span className="resolved-scope-mark" aria-hidden="true">{resolvedScopeType.slice(0, 1)}</span>
                         <div>
-                          <p className="eyebrow">{reportMode === "azure-table" ? "RESOLVED PILOT SCOPE" : "RESOLVED DEMO SCOPE"}</p>
+                          <p className="eyebrow">{reportMode === "fixture" ? "RESOLVED DEMO SCOPE" : "RESOLVED PILOT SCOPE"}</p>
                           <h2 id="resolved-scope-heading">{resolvedScopeName}</h2>
                           <p>{resolvedScopeType} assignment รวม Sites ที่ map กับ node นี้และ descendants โดย server</p>
                         </div>

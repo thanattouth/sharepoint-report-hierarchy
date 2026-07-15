@@ -1,0 +1,21 @@
+{
+  "name": "sharepoint-sensitivity-report-cache-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --external:@azure/functions --external:@azure/data-tables --external:@azure/identity"
+  },
+  "dependencies": {
+    "@azure/data-tables": "13.3.2",
+    "@azure/functions": "4.16.2",
+    "@azure/identity": "4.13.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

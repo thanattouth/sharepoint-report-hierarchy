@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AppCapability, ScanStatus } from "../domain/types";
 import { demoPersonas } from "../fixtures/data";
+import { fetchReportFromApi } from "./api-client";
 import { loadReportCacheConfig } from "./cache-config";
 import {
   buildReport,
@@ -52,6 +53,12 @@ export function parseReportRequest(params: RawSearchParams) {
 export async function loadReportPage(params: RawSearchParams): Promise<ReportData> {
   const cacheConfig = loadReportCacheConfig(process.env);
   const parsed = parseReportRequest(params);
+  if (cacheConfig.mode === "azure-api") {
+    return fetchReportFromApi(
+      cacheConfig,
+      { ...parsed, capability: "ReportViewer", scenario: "current" },
+    );
+  }
   const request: ReportRequest = cacheConfig.mode === "azure-table"
     ? { ...parsed, scenario: "current" }
     : parsed;
@@ -69,6 +76,9 @@ export function getReportMode() {
 
 export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
   const cacheConfig = loadReportCacheConfig(process.env);
+  if (cacheConfig.mode === "azure-api") {
+    throw new ReportAuthorizationError("Export is disabled for the read-only API pilot");
+  }
   const parsed = parseReportRequest(params);
   const request: ReportRequest = cacheConfig.mode === "azure-table"
     ? { ...parsed, scenario: "current" }
