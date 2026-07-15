@@ -13,7 +13,8 @@ Deploy `infra/azure-table-pilot/main.bicep` into a dedicated resource group. The
 - disables blob public access and shared-key authorization;
 - defaults data-plane authorization to Microsoft Entra ID;
 - creates inventory, scan-run, delta-state, and future Site-summary tables; and
-- grants only `Storage Table Data Contributor` to the supplied scanner principal.
+- grants only `Storage Table Data Contributor` to the supplied data-plane principal at the
+  storage-account scope.
 
 Do not reuse a generic customer storage account. Do not add account keys or connection strings
 to the application configuration.
@@ -31,8 +32,14 @@ az deployment group create \
   --name azure-table-pilot-v1 \
   --template-file infra/azure-table-pilot/main.bicep \
   --parameters storageAccountName=<globally-unique-name> \
-               scannerPrincipalId=<scanner-service-principal-object-id>
+               tableDataPrincipalId=<data-plane-principal-object-id> \
+               tableDataPrincipalType=ServicePrincipal
 ```
+
+The deployer needs `Microsoft.Authorization/roleAssignments/write`. When organizational
+separation of duties prevents that permission, deploy with `assignTableDataRole=false`; then an
+authorized subscription owner must assign `Storage Table Data Contributor` at the new storage
+account scope before any data-plane test. Do not enable Shared Key as a workaround.
 
 Deployment is idempotent. Rollback for this isolated pilot is removal of its dedicated resource
 group after an approved export or confirmation that pilot data may be discarded. Never run that
@@ -44,6 +51,8 @@ Keep the real values in the ignored `.env.p4.local` file and add:
 
 ```dotenv
 AZURE_STORAGE_ACCOUNT_NAME=<isolated-storage-account>
+AZURE_STORAGE_TENANT_ID=<storage-subscription-tenant-id>
+AZURE_TABLE_AUTH_MODE=azure-cli
 AZURE_TABLE_INVENTORY_NAME=SensitivityInventory
 AZURE_TABLE_SCAN_RUN_NAME=SensitivityScanRuns
 AZURE_TABLE_DELTA_STATE_NAME=SensitivityDeltaState
@@ -58,7 +67,12 @@ set +a
 npm run p5:persist-bounded
 ```
 
-The command probes the exact allowed Site, scans only the explicitly named libraries within
+`azure-cli` is restricted to the explicitly approved local pilot. Grant that signed-in user the
+Table role only on this isolated account. A hosted worker must use `managed-identity` and replace
+the user role assignment before production promotion.
+
+The command uses separate tenant-pinned credentials for Graph and Table, probes the exact
+allowed Site, scans only the explicitly named libraries within
 the existing hard bounds, upserts item outcomes, saves one run record, and reads the Site
 partition back. Its console output contains only IDs and aggregate counts—not file names or
 paths. It does not persist delta cursors because a bounded diagnostic is not a complete drive
@@ -90,3 +104,17 @@ Before handoff:
   regional placement with the customer.
 - Load-test expected Site/file volume and validate hot-partition behavior. Revisit key design or
   storage technology if the measured query/write profile crosses the agreed thresholds.
+
+## Pilot deployment record — 2026-07-15
+
+- Azure tenant: `778a528f-5fd8-4807-be62-7be9025cd230`
+- Subscription: `5BAHT_Ent_AI_Env` (`d7467474-0c95-42a8-9eff-cfb83c9387f8`)
+- Resource group: `rg-sp-sensitivity-pilot-sea`
+- Storage account: `stspsens778a0715`, Southeast Asia, `Standard_LRS`
+- Security: Shared Key disabled, OAuth default, HTTPS only, minimum TLS 1.2
+- Tables: `SensitivityInventory`, `SensitivityScanRuns`, `SensitivityDeltaState`,
+  `SiteLabelSummary`
+- RBAC: pending. The deployer is Subscription Contributor and cannot create role assignments.
+  Entity access was verified as denied. An Owner, User Access Administrator, or Role Based Access
+  Control Administrator must grant `Storage Table Data Contributor` at the storage-account scope
+  before the bounded persistence run.

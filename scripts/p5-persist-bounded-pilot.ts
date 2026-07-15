@@ -4,7 +4,10 @@ import type {
   SensitivityInventoryItem,
   SensitivityScanRun,
 } from "../src/domain/types";
-import { createAzureCredential } from "../src/scanner/graph/auth";
+import {
+  AzureIdentityGraphTokenProvider,
+  createAzureCredential,
+} from "../src/scanner/graph/auth";
 import {
   runBoundedPilot,
   type BoundedPilotLibraryResult,
@@ -12,8 +15,8 @@ import {
 } from "../src/scanner/graph/bounded-pilot";
 import { loadGraphPilotConfig } from "../src/scanner/graph/config";
 import { GraphClient } from "../src/scanner/graph/graph-client";
-import { AzureIdentityGraphTokenProvider } from "../src/scanner/graph/auth";
 import { probeGraphPilotAccess } from "../src/scanner/graph/probe";
+import { createAzureTableCredential } from "../src/stores/azure-table/auth";
 import { loadAzureTableStoreConfig } from "../src/stores/azure-table/config";
 import { createAzureTableStores } from "../src/stores/azure-table/stores";
 
@@ -78,14 +81,15 @@ const maxDeltaPagesPerLibrary = positiveInteger(
   "P4_PILOT_MAX_DELTA_PAGES_PER_LIBRARY",
 );
 
-const credential = createAzureCredential(graphConfig.auth);
+const graphCredential = createAzureCredential(graphConfig.auth);
+const tableCredential = createAzureTableCredential(tableConfig.auth);
 const graph = new GraphClient({
-  tokenProvider: new AzureIdentityGraphTokenProvider(credential),
+  tokenProvider: new AzureIdentityGraphTokenProvider(graphCredential),
   maxRetries: graphConfig.maxRetries,
 });
 const { inventoryStore, scanRunStore } = createAzureTableStores({
   config: tableConfig,
-  credential,
+  credential: tableCredential,
   tenantId: graphConfig.tenantId,
 });
 const runId = `bounded-${randomUUID()}`;

@@ -18,7 +18,9 @@ reasonable for small, human-maintained configuration, not for the scanner's prim
 
 Use an isolated customer-owned Azure Storage account with Azure Table for the pilot cache.
 Provision it from Bicep and authenticate with Microsoft Entra ID. Disable shared-key access.
-Grant `Storage Table Data Contributor` only to the scanner identity.
+Grant `Storage Table Data Contributor` only to the approved data-plane principal at the
+storage-account scope. A local cross-tenant pilot may use the signed-in storage-tenant operator;
+production must replace that assignment with the hosted worker's managed identity.
 
 Use these tables:
 
@@ -35,6 +37,9 @@ SharePoint during page load and will not enumerate every inventory partition to 
 ## Consequences
 
 - Stable keys make file writes idempotent and allow a Site partition to be read efficiently.
+- Graph and Table credentials are separate configuration boundaries. This supports a Graph
+  tenant and an Azure subscription tenant that differ without making either credential
+  multi-tenant or reusing a token across resources.
 - Azure Table supports the pilot's high write volume at low operational complexity.
 - Queries outside partition/row-key access are not automatically indexed. Required global
   views must be materialized explicitly rather than implemented as broad table scans.

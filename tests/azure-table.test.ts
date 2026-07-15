@@ -41,11 +41,29 @@ test("Azure Table configuration fails closed and supplies schema table names", (
     () => loadAzureTableStoreConfig({ AZURE_STORAGE_ACCOUNT_NAME: "Invalid-Name" }),
     /lowercase alphanumeric/,
   );
-  const config = loadAzureTableStoreConfig({ AZURE_STORAGE_ACCOUNT_NAME: "senspilot123" });
+  assert.throws(
+    () => loadAzureTableStoreConfig({ AZURE_STORAGE_ACCOUNT_NAME: "senspilot123" }),
+    /AZURE_STORAGE_TENANT_ID/,
+  );
+  const config = loadAzureTableStoreConfig({
+    AZURE_STORAGE_ACCOUNT_NAME: "senspilot123",
+    AZURE_STORAGE_TENANT_ID: tenantId,
+    AZURE_TABLE_AUTH_MODE: "azure-cli",
+  });
   assert.equal(config.endpoint, "https://senspilot123.table.core.windows.net");
   assert.equal(config.inventoryTableName, "SensitivityInventory");
   assert.equal(config.scanRunTableName, "SensitivityScanRuns");
   assert.equal(config.deltaStateTableName, "SensitivityDeltaState");
+  assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
+  assert.throws(
+    () => loadAzureTableStoreConfig({
+      AZURE_STORAGE_ACCOUNT_NAME: "senspilot123",
+      AZURE_STORAGE_TENANT_ID: tenantId,
+      AZURE_TABLE_AUTH_MODE: "azure-cli",
+      AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID: tenantId,
+    }),
+    /requires managed-identity/,
+  );
 });
 
 test("Azure Table inventory codec preserves the stable file identity and labels", () => {

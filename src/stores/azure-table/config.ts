@@ -4,10 +4,21 @@ export type AzureTableStoreConfig = {
   inventoryTableName: string;
   scanRunTableName: string;
   deltaStateTableName: string;
+  auth:
+    | {
+        mode: "azure-cli";
+        tenantId: string;
+      }
+    | {
+        mode: "managed-identity";
+        tenantId: string;
+        clientId?: string;
+      };
 };
 
 const ACCOUNT_NAME = /^[a-z0-9]{3,24}$/;
 const TABLE_NAME = /^[A-Za-z][A-Za-z0-9]{2,62}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function required(env: Record<string, string | undefined>, name: string) {
   const value = env[name]?.trim();
@@ -19,6 +30,11 @@ function tableName(value: string, name: string) {
   if (!TABLE_NAME.test(value)) {
     throw new Error(`${name} must be 3-63 alphanumeric characters and start with a letter`);
   }
+  return value;
+}
+
+function uuid(value: string, name: string) {
+  if (!UUID_PATTERN.test(value)) throw new Error(`${name} must be a UUID`);
   return value;
 }
 
@@ -35,6 +51,20 @@ export function loadAzureTableStoreConfig(
   if (parsed.protocol !== "https:" && parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
     throw new Error("AZURE_TABLE_ENDPOINT must use HTTPS outside local development");
   }
+  const tenantId = uuid(
+    required(env, "AZURE_STORAGE_TENANT_ID"),
+    "AZURE_STORAGE_TENANT_ID",
+  );
+  const authMode = required(env, "AZURE_TABLE_AUTH_MODE");
+  if (authMode !== "azure-cli" && authMode !== "managed-identity") {
+    throw new Error("AZURE_TABLE_AUTH_MODE must be azure-cli or managed-identity");
+  }
+  const managedIdentityClientId = env.AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID?.trim();
+  if (managedIdentityClientId && authMode !== "managed-identity") {
+    throw new Error(
+      "AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID requires managed-identity auth mode",
+    );
+  }
   return {
     accountName,
     endpoint: parsed.toString().replace(/\/$/, ""),
@@ -50,5 +80,17 @@ export function loadAzureTableStoreConfig(
       env.AZURE_TABLE_DELTA_STATE_NAME?.trim() || "SensitivityDeltaState",
       "AZURE_TABLE_DELTA_STATE_NAME",
     ),
+    auth: authMode === "azure-cli"
+      ? { mode: authMode, tenantId }
+      : {
+          mode: authMode,
+          tenantId,
+          clientId: managedIdentityClientId
+            ? uuid(
+                managedIdentityClientId,
+                "AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID",
+              )
+            : undefined,
+        },
   };
 }
