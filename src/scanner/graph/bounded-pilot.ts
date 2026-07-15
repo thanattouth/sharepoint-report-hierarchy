@@ -1,6 +1,7 @@
 import { mapWithConcurrency } from "../bounded-concurrency";
 import type { GraphPilotConfig } from "./config";
 import { GraphClient, GraphRequestError } from "./graph-client";
+import { sensitivityLabelAssignments } from "./sensitivity-label-response";
 import type {
   ExtractSensitivityLabelsResponse,
   GraphCollection,
@@ -23,6 +24,7 @@ export type BoundedPilotOutcome = {
   }>;
   graphStatus?: number;
   graphCode?: string;
+  graphMessage?: string;
   graphRequestId?: string;
 };
 
@@ -118,7 +120,7 @@ async function extract(
       `/drives/${encoded(drive.id)}/items/${encoded(item.id)}/extractSensitivityLabels`,
       { method: "POST" },
     );
-    const labels = (response.value?.labels ?? []).flatMap((label) =>
+    const labels = sensitivityLabelAssignments(response).flatMap((label) =>
       label.sensitivityLabelId
         ? [{
             id: label.sensitivityLabelId,
@@ -135,6 +137,7 @@ async function extract(
       status: failureStatus(error),
       graphStatus: error.status,
       graphCode: error.code,
+      graphMessage: error.message.slice(0, 500),
       graphRequestId: error.requestId,
     };
   }

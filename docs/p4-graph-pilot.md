@@ -7,6 +7,8 @@
 - One-Site allowlist validated before any Graph request.
 - Site-drive discovery, drive delta paging, label extraction, item outcomes, deletion
   markers, and delta-state persistence ports.
+- Label-response parsing that accepts the current top-level `labels` payload and the
+  earlier nested `value.labels` shape used by recorded fixtures.
 - Bounded concurrency, bounded retry, `Retry-After`, safe Graph next-link validation,
   and request-ID capture.
 - No Graph call from the report page or export path.
@@ -34,7 +36,8 @@ file. Required values are:
 - `SCANNER_TENANT_ID`
 - `SCANNER_ALLOWED_SITE_ID`
 - `SCANNER_REPORTABLE_LABEL_IDS` — comma-separated Purview label GUIDs included in
-  the report, such as Confidential and Secret. Do not compare display names in code.
+  the report, including the exact sublabel GUID where applicable. Do not configure only
+  a parent label or compare display names in code.
 - Optional `SCANNER_LABEL_DISPLAY_NAMES_JSON` — JSON object mapping approved label
   GUIDs to display names. Every key must already be in the reportable label allowlist.
 - `SCANNER_AUTH_MODE=default` for managed/workload identity, optionally with
@@ -71,6 +74,12 @@ The command intentionally prints authorized file names, paths, item outcomes, an
 metadata for pilot reconciliation. Run it only in a private operator terminal; never put
 its output in shared CI logs, tickets, or public artifacts. A completed diagnostic pilot
 does not replace the durable scheduled scanner or its storage/audit controls.
+
+Treat `415 notSupported` as an unresolved extraction outcome, never as `no-label`. Preserve
+the bounded error message and Graph request ID for operator diagnosis. For example, Graph
+can reject a protected file when an unsupported user is attached to its assigned sensitivity
+label. This proves that extraction failed but does not reveal a trustworthy label ID, so do
+not infer the label from its library name or count it under a specific reportable label.
 
 ## Safe execution sequence
 

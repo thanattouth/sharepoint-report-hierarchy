@@ -163,7 +163,7 @@ test("bounded pilot scans only named libraries and enforces the per-library file
         return { value: [{ id: "c1", name: "four.docx", file: {} }] };
       }
       if (path.includes("extractSensitivityLabels")) {
-        return { value: { labels: [{ sensitivityLabelId: CONFIDENTIAL_LABEL_ID }] } };
+        return { labels: [{ sensitivityLabelId: CONFIDENTIAL_LABEL_ID }] };
       }
       throw new Error(`Unexpected Graph request: ${path}`);
     },
@@ -178,6 +178,10 @@ test("bounded pilot scans only named libraries and enforces the per-library file
   });
 
   assert.deepEqual(results.map((result) => result.selectedFileCount), [2, 1]);
+  assert.ok(results.every((result) => result.outcomes.every((outcome) => outcome.status === "success")));
+  assert.ok(results.every((result) => result.outcomes.every(
+    (outcome) => outcome.labels[0]?.id === CONFIDENTIAL_LABEL_ID,
+  )));
   assert.equal(requests.filter((request) => request.method === "POST").length, 3);
   assert.ok(!requests.some((request) => request.path.includes("drive-other/root/delta")));
   await assert.rejects(

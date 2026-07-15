@@ -17,6 +17,7 @@ import type {
 } from "../contracts";
 import type { GraphPilotConfig } from "./config";
 import { GraphClient, GraphRequestError } from "./graph-client";
+import { sensitivityLabelAssignments } from "./sensitivity-label-response";
 import type {
   ExtractSensitivityLabelsResponse,
   GraphCollection,
@@ -217,7 +218,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
         `/drives/${encoded(drive.id)}/items/${encoded(item.id)}/extractSensitivityLabels`,
         { method: "POST" },
       );
-      const labels = (response.value?.labels ?? [])
+      const labels = sensitivityLabelAssignments(response)
         .filter((label): label is Required<Pick<typeof label, "sensitivityLabelId">> & typeof label => Boolean(label.sensitivityLabelId))
         .map((label) => ({
           id: label.sensitivityLabelId,

@@ -27,12 +27,17 @@ export type GraphDeltaResponse = GraphCollection<GraphDriveItem> & {
   "@odata.deltaLink"?: string;
 };
 
+export type GraphSensitivityLabelAssignment = {
+  sensitivityLabelId?: string;
+  assignmentMethod?: string;
+  tenantId?: string;
+};
+
 export type ExtractSensitivityLabelsResponse = {
+  // Microsoft Graph currently returns labels at the top level. Keep the nested
+  // shape for compatibility with earlier responses and recorded test fixtures.
+  labels?: GraphSensitivityLabelAssignment[];
   value?: {
-    labels?: Array<{
-      sensitivityLabelId?: string;
-      assignmentMethod?: string;
-      tenantId?: string;
-    }>;
+    labels?: GraphSensitivityLabelAssignment[];
   };
 };

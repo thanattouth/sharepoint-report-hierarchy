@@ -170,11 +170,13 @@ Do not expand to production-wide scanning during P4.
   library drive. Never grant write permission to the read-only scanner merely to prepare test
   data, and never infer a file label from a library name such as `Secret`.
 - Apply the real Microsoft Purview label through an approved user-context workflow. Record the
-  immutable label ID expected from Graph rather than relying on the display name alone.
-- Run the bounded diagnostic before and after label application. An immediately uploaded,
-  unlabeled Office file may return `415 notSupported`; retain that as a distinct item outcome,
-  allow for service propagation, and require a successful post-label extraction before passing
-  the P4 label-detection gate.
+  immutable sublabel ID expected from Graph rather than relying on a parent label or display
+  name alone.
+- Parse the current top-level `labels` response from `extractSensitivityLabels`; retain support
+  for the earlier nested `value.labels` shape only as a compatibility path. Cover both with tests.
+- Treat `415 notSupported` as unresolved extraction, never as `no-label`. Preserve its sanitized
+  message and Graph request ID; an unsupported user attached to an assigned protected label is
+  one possible cause. Do not infer a specific label from the containing library.
 - Keep fixture upload, label assignment, and scanner verification auditable as separate actions.
   Do not download content or widen the approved Site/library/file bounds during verification.
 
