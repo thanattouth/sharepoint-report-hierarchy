@@ -1,9 +1,9 @@
 # P5 Azure Table pilot cache
 
 This slice promotes the bounded DGCS scan from console-only diagnostics to an isolated,
-customer-owned cache. It does not schedule the scanner yet and does not connect the web report
-to Azure. The approved Graph boundary remains exactly one Site and the exact `Secret` and
-`Confidential` library names configured for the pilot.
+customer-owned cache and proves a cache-only report projection. It does not schedule the scanner
+or publish the Azure-backed report yet. The approved Graph boundary remains exactly one Site and
+the exact `Secret` and `Confidential` library names configured for the pilot.
 
 ## Resources
 
@@ -56,6 +56,7 @@ AZURE_TABLE_AUTH_MODE=azure-cli
 AZURE_TABLE_INVENTORY_NAME=SensitivityInventory
 AZURE_TABLE_SCAN_RUN_NAME=SensitivityScanRuns
 AZURE_TABLE_DELTA_STATE_NAME=SensitivityDeltaState
+AZURE_TABLE_SITE_SUMMARY_NAME=SiteLabelSummary
 ```
 
 After RBAC propagation, load the local environment with Node's env-file parser and run:
@@ -63,6 +64,17 @@ After RBAC propagation, load the local environment with Node's env-file parser a
 ```bash
 npm run p5:persist-bounded:local
 ```
+
+To rebuild the report-facing summary from already persisted inventory without calling Graph:
+
+```bash
+npm run p5:materialize-summary:local
+```
+
+The materializer writes one row per Site to `SiteLabelSummary`. The row contains aggregate
+label, library, status, and freshness/run provenance only. The dashboard reads this projection
+for broad scopes, so an EVP view does not enumerate every file partition. File detail is loaded
+only after a server-authorized Site selection.
 
 Do not shell-source the populated file. JSON display-name maps and secret characters can be
 altered or interpreted by the shell; Node's env-file parser loads them without executing text.
@@ -93,12 +105,25 @@ Before handoff:
 4. Run `npm run lint`, `npm run typecheck`, `npm test`, and dependency audit.
 5. Confirm no credentials, file names, paths, or opaque delta tokens were committed or logged.
 
+For the approved DGCS pilot, verify the cache-only report authorization path with:
+
+```bash
+npm run p5:verify-report-cache:local
+```
+
+This check resolves hierarchy scope before Table access, proves the EVP and mapped Project
+counts, proves sibling/no-assignment denial, and rejects a cross-scope Site request. It prints
+aggregate results only.
+
 ## Production promotion gates
 
 - Replace the short-lived local client secret with managed identity/workload identity.
 - Add timer and queue workers; Run now must enqueue and return immediately.
-- Populate `SiteLabelSummary` transactionally enough for cache-only report reads and record
-  freshness/run provenance.
+- Keep `SiteLabelSummary` consistent with inventory using idempotent run completion plus a
+  reconciliation job; alert on count/provenance drift.
+- Create a dedicated report read identity with only `Storage Table Data Reader`. Host the Table
+  adapter or a narrow report API in a runtime that supports Entra workload identity. Never give
+  the report the scanner identity or Table write role.
 - Add metrics, alerts, poison-job handling, retry budgets, reconciliation, and operator runbooks.
 - Approve network isolation, durability tier, retention, export/restore, privacy, cost, and
   regional placement with the customer.
@@ -123,3 +148,14 @@ Before handoff:
   entities, 12 reportable-label successes, 4 unsupported, 0 failed, and status `partial`.
 - `SensitivityDeltaState` remained empty because the bounded traversal must not establish a
   production delta cursor.
+- `SiteLabelSummary` was materialized as one DGCS row: 16 inventory outcomes, 12 reportable
+  sensitive items, 2 libraries, status counts `success=12` and `unsupported=4`, with provenance
+  to the first persisted run.
+- The cache-only authorization check passed: EVP and the temporarily mapped `Project Aurora`
+  scope each resolve 12 sensitive items; the sibling scope resolves `no-sites`, an unassigned
+  user resolves `no-assignment`, and a cross-scope Site request is denied. `Project Aurora` is
+  pilot-only proof data, not the customer's production business mapping.
+- The Sites/Cloudflare worker build remains fixture-backed. Its runtime cannot use the local
+  Azure CLI credential and is not an Azure managed-identity host. Azure mode therefore fails
+  closed and must not be published until the dedicated report-reader/API boundary in
+  ADR 0006 is deployed.

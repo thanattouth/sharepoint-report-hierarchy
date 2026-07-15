@@ -97,6 +97,29 @@ export type SensitivityScanRun = {
   errorSummary?: string;
 };
 
+export type SiteSensitivitySummary = {
+  tenantId: string;
+  siteId: string;
+  siteName: string;
+  siteWebUrl?: string;
+  inventoryCount: number;
+  sensitiveCount: number;
+  libraryCount: number;
+  labelCounts: Array<{
+    id: string;
+    displayName?: string;
+    count: number;
+  }>;
+  libraryCounts: Array<{
+    libraryName: string;
+    sensitiveCount: number;
+  }>;
+  statusCounts: Record<ScanStatus, number>;
+  lastScannedAt?: string;
+  latestRunId?: string;
+  updatedAt: string;
+};
+
 export type DeltaState = {
   driveId: string;
   cursor: string;

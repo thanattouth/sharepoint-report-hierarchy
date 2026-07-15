@@ -7,6 +7,7 @@ import type {
   GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
+  SiteSensitivitySummary,
 } from "../domain/types";
 
 export interface HierarchyStore {
@@ -32,4 +33,9 @@ export interface ScanRunStore {
 export interface DeltaStateStore {
   get(driveId: string): Promise<DeltaState | null>;
   save(state: DeltaState): Promise<void>;
+}
+
+export interface SiteSummaryStore {
+  listBySiteIds(siteIds: string[]): Promise<SiteSensitivitySummary[]>;
+  save(summary: SiteSensitivitySummary): Promise<void>;
 }

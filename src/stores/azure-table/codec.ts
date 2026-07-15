@@ -2,6 +2,7 @@ import type {
   DeltaState,
   SensitivityInventoryItem,
   SensitivityScanRun,
+  SiteSensitivitySummary,
 } from "../../domain/types";
 
 type InventoryEntity = Omit<SensitivityInventoryItem, "sensitivityLabels"> & {
@@ -19,6 +20,17 @@ type ScanRunEntity = Omit<SensitivityScanRun, "targetSiteIds"> & {
 type DeltaStateEntity = DeltaState & {
   partitionKey: string;
   rowKey: string;
+};
+
+type SiteSummaryEntity = Omit<
+  SiteSensitivitySummary,
+  "labelCounts" | "libraryCounts" | "statusCounts"
+> & {
+  partitionKey: string;
+  rowKey: string;
+  labelCountsJson: string;
+  libraryCountsJson: string;
+  statusCountsJson: string;
 };
 
 type AzureTableServiceMetadata = {
@@ -119,4 +131,46 @@ export function fromDeltaStateEntity(
   );
 }
 
-export type { DeltaStateEntity, InventoryEntity, ScanRunEntity };
+export function toSiteSummaryEntity(summary: SiteSensitivitySummary): SiteSummaryEntity {
+  return withoutUndefined({
+    ...summary,
+    partitionKey: encodedKey(summary.tenantId),
+    rowKey: encodedKey(summary.siteId),
+    labelCountsJson: JSON.stringify(summary.labelCounts),
+    libraryCountsJson: JSON.stringify(summary.libraryCounts),
+    statusCountsJson: JSON.stringify(summary.statusCounts),
+    labelCounts: undefined,
+    libraryCounts: undefined,
+    statusCounts: undefined,
+  }) as SiteSummaryEntity;
+}
+
+export function fromSiteSummaryEntity(
+  entity: SiteSummaryEntity & AzureTableServiceMetadata,
+): SiteSensitivitySummary {
+  const summary = entityProperties(
+    entity,
+    [
+      "partitionKey",
+      "rowKey",
+      "labelCountsJson",
+      "libraryCountsJson",
+      "statusCountsJson",
+      "etag",
+      "timestamp",
+    ] as const,
+  );
+  const labelCounts = JSON.parse(entity.labelCountsJson) as SiteSensitivitySummary["labelCounts"];
+  const libraryCounts = JSON.parse(
+    entity.libraryCountsJson,
+  ) as SiteSensitivitySummary["libraryCounts"];
+  const statusCounts = JSON.parse(
+    entity.statusCountsJson,
+  ) as SiteSensitivitySummary["statusCounts"];
+  if (!Array.isArray(labelCounts) || !Array.isArray(libraryCounts)) {
+    throw new Error("Azure Table Site summary counts are invalid");
+  }
+  return { ...summary, labelCounts, libraryCounts, statusCounts };
+}
+
+export type { DeltaStateEntity, InventoryEntity, ScanRunEntity, SiteSummaryEntity };

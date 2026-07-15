@@ -89,6 +89,14 @@ Enforce all of these on every change:
 - For Azure Table, partition inventory by `tenantId + siteId`, key rows by
   `driveId + itemId`, strip service metadata in adapters, and materialize Site/label summaries
   for report queries. Do not render a large dashboard by enumerating every Site partition.
+- Resolve allowed Site IDs before creating or querying the report cache adapter. For broad
+  scopes, read `SiteLabelSummary`; query an inventory partition only after a Site has been
+  explicitly selected and authorized. Reject a requested Site outside the resolved scope before
+  any Table read.
+- Give the hosted report a dedicated `Storage Table Data Reader` workload identity. Never reuse
+  the scanner identity or a write-capable operator credential. If the website runtime cannot
+  obtain an approved Entra token, keep Azure mode fail-closed and put a narrow server-side report
+  API in a compatible managed-identity runtime; never fall back to Shared Key or browser tokens.
 - Respect Azure separation of duties. If the infrastructure deployer cannot write role
   assignments, deploy storage without the conditional assignment and stop before data access
   until an authorized owner grants the scoped Table data role. Never enable Shared Key to bypass

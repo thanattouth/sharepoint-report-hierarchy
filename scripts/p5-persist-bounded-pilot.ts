@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { buildSiteSensitivitySummary } from "../src/domain/site-summary";
 import type {
   ScanStatus,
   SensitivityInventoryItem,
@@ -87,7 +88,7 @@ const graph = new GraphClient({
   tokenProvider: new AzureIdentityGraphTokenProvider(graphCredential),
   maxRetries: graphConfig.maxRetries,
 });
-const { inventoryStore, scanRunStore } = createAzureTableStores({
+const { inventoryStore, scanRunStore, siteSummaryStore } = createAzureTableStores({
   config: tableConfig,
   credential: tableCredential,
   tenantId: graphConfig.tenantId,
@@ -153,9 +154,20 @@ try {
     unsupportedCount: count(outcomes, "unsupported"),
     failedCount: count(outcomes, "failed"),
   };
+  const persisted = await inventoryStore.listCurrentBySiteIds([graphConfig.allowedSiteId]);
+  const summary = buildSiteSensitivitySummary({
+    tenantId: graphConfig.tenantId,
+    siteId: graphConfig.allowedSiteId,
+    siteName: site.displayName ?? graphConfig.allowedSiteId,
+    siteWebUrl: site.webUrl,
+    items: persisted,
+    reportableLabelIds: graphConfig.reportableLabelIds,
+    latestRunId: runId,
+    updatedAt: finishedAt,
+  });
+  await siteSummaryStore.save(summary);
   await scanRunStore.save(completed);
 
-  const persisted = await inventoryStore.listCurrentBySiteIds([graphConfig.allowedSiteId]);
   const labelCounts = new Map<string, number>();
   for (const item of persisted) {
     for (const label of item.sensitivityLabels) {
@@ -181,6 +193,11 @@ try {
       failed: completed.failedCount,
     },
     persistedCurrentCount: persisted.length,
+    persistedSummary: {
+      inventoryCount: summary.inventoryCount,
+      sensitiveCount: summary.sensitiveCount,
+      libraryCount: summary.libraryCount,
+    },
     labelCounts: Object.fromEntries([...labelCounts].sort(([left], [right]) => left.localeCompare(right))),
   }, null, 2)}\n`);
 } catch (error) {

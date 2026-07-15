@@ -28,11 +28,17 @@ Use these tables:
   `tenantId + siteId`; row key by encoded `driveId + itemId`.
 - `SensitivityScanRuns` — run status and aggregate outcome counts. Partition by tenant ID.
 - `SensitivityDeltaState` — one opaque cursor per drive. Partition by tenant ID.
-- `SiteLabelSummary` — precomputed report-facing Site/label counts; populated in a later slice.
+- `SiteLabelSummary` — precomputed report-facing Site/label, library, outcome, and freshness
+  counts. It is materialized from one Site inventory partition after persistence and can be
+  rebuilt independently for reconciliation.
 
 The report will read precomputed summaries and paginated cache projections. It will not scan
 SharePoint during page load and will not enumerate every inventory partition to render a
 1,000-Site dashboard.
+
+Report authorization resolves allowed Site IDs before any Table query. Broad views read Site
+summaries; file detail requires an explicitly selected, server-authorized Site. The report's
+read identity is separate from the scanner's write identity as defined in ADR 0006.
 
 ## Consequences
 

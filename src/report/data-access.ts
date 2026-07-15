@@ -1,23 +1,17 @@
 import "server-only";
 
 import type { AppCapability, ScanStatus } from "../domain/types";
-import { REPORTABLE_LABEL_IDS, demoPersonas } from "../fixtures/data";
-import {
-  FixtureHierarchyStore,
-  FixtureInventoryStore,
-  FixtureScanRunStore,
-} from "../stores/fixture-store";
+import { demoPersonas } from "../fixtures/data";
+import { loadReportCacheConfig } from "./cache-config";
 import {
   buildReport,
   ReportAuthorizationError,
   type DemoScenario,
   type ReportData,
   type ReportFilters,
+  type ReportRequest,
 } from "./report-service";
-
-const hierarchyStore = new FixtureHierarchyStore();
-const inventoryStore = new FixtureInventoryStore();
-const scanRunStore = new FixtureScanRunStore();
+import { loadReportSource } from "./report-source";
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
 
@@ -56,46 +50,43 @@ export function parseReportRequest(params: RawSearchParams) {
 }
 
 export async function loadReportPage(params: RawSearchParams): Promise<ReportData> {
-  const request = parseReportRequest(params);
+  const cacheConfig = loadReportCacheConfig(process.env);
+  const parsed = parseReportRequest(params);
+  const request: ReportRequest = cacheConfig.mode === "azure-table"
+    ? { ...parsed, scenario: "current" }
+    : parsed;
   if (request.scenario === "cache-error") throw new Error("Fixture cache unavailable");
-  const [nodes, assignments, sites, siteMappings, runs] = await Promise.all([
-    hierarchyStore.getNodes(),
-    hierarchyStore.getAssignments(),
-    hierarchyStore.getSites(),
-    hierarchyStore.getSiteMappings(),
-    scanRunStore.listRecent(),
-  ]);
-  const inventory = await inventoryStore.listCurrentBySiteIds(
-    sites.filter((site) => site.active).map((site) => site.id),
-  );
-  return buildReport(
-    { nodes, assignments, sites, siteMappings, inventory, runs, reportableLabelIds: REPORTABLE_LABEL_IDS },
-    request,
-  );
+  return buildReport(await loadReportSource(request, cacheConfig), request);
 }
 
 export async function getDemoOptions() {
   return structuredClone(demoPersonas);
 }
 
+export function getReportMode() {
+  return loadReportCacheConfig(process.env).mode;
+}
+
 export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
-  const request = parseReportRequest(params);
+  const cacheConfig = loadReportCacheConfig(process.env);
+  const parsed = parseReportRequest(params);
+  const request: ReportRequest = cacheConfig.mode === "azure-table"
+    ? { ...parsed, scenario: "current" }
+    : parsed;
   if (request.capability !== "ReportAdmin") {
     throw new ReportAuthorizationError("Export requires ReportAdmin");
   }
-  const report = await loadReportPage({ ...params, page: "1" });
-  const [nodes, assignments, sites, siteMappings, inventory, runs] = await Promise.all([
-    hierarchyStore.getNodes(),
-    hierarchyStore.getAssignments(),
-    hierarchyStore.getSites(),
-    hierarchyStore.getSiteMappings(),
-    inventoryStore.listCurrentBySiteIds(report.allowedSiteIds),
-    scanRunStore.listRecent(),
-  ]);
+  const source = await loadReportSource(
+    { ...request, filters: { ...request.filters, page: 1, pageSize: 50 } },
+    cacheConfig,
+  );
   const fullReport = buildReport(
-    { nodes, assignments, sites, siteMappings, inventory, runs, reportableLabelIds: REPORTABLE_LABEL_IDS },
+    source,
     { ...request, filters: { ...request.filters, page: 1, pageSize: 50 } },
   );
+  if (fullReport.detailsRequireSiteSelection) {
+    throw new ReportAuthorizationError("Select one authorized Site before exporting a large scope");
+  }
   const header = [
     "File name",
     "File path",
@@ -109,7 +100,9 @@ export async function buildScopedCsv(params: RawSearchParams): Promise<string> {
     "Scanned at",
   ];
   const rows = fullReport.rows.map((item) => {
-    const label = item.sensitivityLabels.find((candidate) => REPORTABLE_LABEL_IDS.has(candidate.id));
+    const label = item.sensitivityLabels.find((candidate) =>
+      source.reportableLabelIds.has(candidate.id),
+    );
     return [
       item.fileName,
       item.filePath,

@@ -9,21 +9,30 @@ import type {
   DeletedInventoryIdentity,
   SensitivityInventoryItem,
   SensitivityScanRun,
+  SiteSensitivitySummary,
 } from "../../domain/types";
-import type { DeltaStateStore, InventoryStore, ScanRunStore } from "../contracts";
+import type {
+  DeltaStateStore,
+  InventoryStore,
+  ScanRunStore,
+  SiteSummaryStore,
+} from "../contracts";
 import type { AzureTableStoreConfig } from "./config";
 import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromScanRunEntity,
+  fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
   toScanRunEntity,
+  toSiteSummaryEntity,
   type DeltaStateEntity,
   type InventoryEntity,
   type ScanRunEntity,
+  type SiteSummaryEntity,
 } from "./codec";
 
 function odata(value: string) {
@@ -145,6 +154,36 @@ export class AzureTableDeltaStateStore implements DeltaStateStore {
   }
 }
 
+export class AzureTableSiteSummaryStore implements SiteSummaryStore {
+  constructor(
+    private readonly client: TableClient,
+    private readonly tenantId: string,
+  ) {}
+
+  async listBySiteIds(siteIds: string[]) {
+    const allowed = new Set(siteIds);
+    if (allowed.size === 0) return [];
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteSummaryEntity>({
+      queryOptions: { filter: `PartitionKey eq '${odata(partitionKey)}'` },
+    });
+    const summaries: SiteSensitivitySummary[] = [];
+    for await (const entity of entities) {
+      if (allowed.has(entity.siteId)) {
+        summaries.push(fromSiteSummaryEntity(entity as SiteSummaryEntity));
+      }
+    }
+    return summaries;
+  }
+
+  async save(summary: SiteSensitivitySummary) {
+    if (summary.tenantId !== this.tenantId) {
+      throw new Error("Refusing Azure Table Site summary write for another tenant");
+    }
+    await this.client.upsertEntity(toSiteSummaryEntity(summary), "Replace");
+  }
+}
+
 export function createAzureTableStores(input: {
   config: AzureTableStoreConfig;
   credential: TokenCredential;
@@ -161,6 +200,10 @@ export function createAzureTableStores(input: {
     ),
     deltaStateStore: new AzureTableDeltaStateStore(
       new TableClient(input.config.endpoint, input.config.deltaStateTableName, input.credential),
+      input.tenantId,
+    ),
+    siteSummaryStore: new AzureTableSiteSummaryStore(
+      new TableClient(input.config.endpoint, input.config.siteSummaryTableName, input.credential),
       input.tenantId,
     ),
   };

@@ -16,6 +16,10 @@ This repository is an evolving production product, not a disposable prototype.
 - Provision scanner persistence as isolated customer-owned infrastructure from IaC. Use Entra
   token authorization, keep shared keys disabled, and materialize report query patterns instead
   of relying on broad Azure Table scans.
+- Give the hosted report a dedicated read-only workload identity and keep Azure tokens behind a
+  server-side boundary. Resolve authorized Site IDs before querying summaries or inventory.
+- Treat a runtime that cannot obtain the approved Entra workload token as unavailable and fail
+  closed; never substitute the scanner credential, an account key, or a browser token.
 - Run lint, type check, unit/rendered tests, build, and dependency audit before release.
 
 ## Dependency security baseline — 2026-07-14

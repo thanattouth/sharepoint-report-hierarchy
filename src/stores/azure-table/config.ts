@@ -4,6 +4,7 @@ export type AzureTableStoreConfig = {
   inventoryTableName: string;
   scanRunTableName: string;
   deltaStateTableName: string;
+  siteSummaryTableName: string;
   auth:
     | {
         mode: "azure-cli";
@@ -79,6 +80,10 @@ export function loadAzureTableStoreConfig(
     deltaStateTableName: tableName(
       env.AZURE_TABLE_DELTA_STATE_NAME?.trim() || "SensitivityDeltaState",
       "AZURE_TABLE_DELTA_STATE_NAME",
+    ),
+    siteSummaryTableName: tableName(
+      env.AZURE_TABLE_SITE_SUMMARY_NAME?.trim() || "SiteLabelSummary",
+      "AZURE_TABLE_SITE_SUMMARY_NAME",
     ),
     auth: authMode === "azure-cli"
       ? { mode: authMode, tenantId }

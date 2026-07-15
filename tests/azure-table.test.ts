@@ -2,16 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { TableClient, TransactionAction } from "@azure/data-tables";
 import type { SensitivityInventoryItem, SensitivityScanRun } from "../src/domain/types";
+import { buildSiteSensitivitySummary } from "../src/domain/site-summary";
 import { loadAzureTableStoreConfig } from "../src/stores/azure-table/config";
 import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromScanRunEntity,
+  fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
   toScanRunEntity,
+  toSiteSummaryEntity,
 } from "../src/stores/azure-table/codec";
 import { AzureTableInventoryStore } from "../src/stores/azure-table/stores";
 
@@ -54,6 +57,7 @@ test("Azure Table configuration fails closed and supplies schema table names", (
   assert.equal(config.inventoryTableName, "SensitivityInventory");
   assert.equal(config.scanRunTableName, "SensitivityScanRuns");
   assert.equal(config.deltaStateTableName, "SensitivityDeltaState");
+  assert.equal(config.siteSummaryTableName, "SiteLabelSummary");
   assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
   assert.throws(
     () => loadAzureTableStoreConfig({
@@ -63,6 +67,36 @@ test("Azure Table configuration fails closed and supplies schema table names", (
       AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID: tenantId,
     }),
     /requires managed-identity/,
+  );
+});
+
+test("Site summary materializes distinct reportable counts and round-trips through Table", () => {
+  const labelId = "22222222-2222-4222-8222-222222222222";
+  const sensitive = inventoryItem({
+    sensitivityLabels: [{ id: labelId, displayName: "Highly Confidential" }],
+    scanStatus: "success",
+  });
+  const summary = buildSiteSensitivitySummary({
+    tenantId,
+    siteId,
+    siteName: "DGCS",
+    siteWebUrl: "https://contoso.sharepoint.com/sites/DGCS",
+    items: [sensitive, sensitive, inventoryItem({ itemId: "unsupported", scanStatus: "unsupported" })],
+    reportableLabelIds: new Set([labelId]),
+    latestRunId: "bounded-1",
+    updatedAt: "2026-07-15T04:10:00.000Z",
+  });
+  assert.equal(summary.inventoryCount, 2);
+  assert.equal(summary.sensitiveCount, 1);
+  assert.equal(summary.statusCounts.unsupported, 1);
+  assert.deepEqual(summary.labelCounts, [{ id: labelId, displayName: "Highly Confidential", count: 1 }]);
+  assert.deepEqual(
+    fromSiteSummaryEntity({
+      ...toSiteSummaryEntity(summary),
+      etag: "W/metadata",
+      timestamp: new Date("2026-07-15T04:10:01.000Z"),
+    }),
+    summary,
   );
 });
 

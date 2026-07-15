@@ -8,6 +8,7 @@ import type {
   ScanStatus,
   SensitivityInventoryItem,
   SensitivityScanRun,
+  SiteSensitivitySummary,
 } from "../domain/types";
 import { stableFileKey } from "../domain/types";
 
@@ -89,6 +90,7 @@ export type ReportData = {
   lastSuccessfulScan?: string;
   nextScheduledScan?: string;
   freshness: "current" | "stale" | "partial" | "unknown";
+  detailsRequireSiteSelection: boolean;
 };
 
 export class ReportAuthorizationError extends Error {
@@ -98,7 +100,7 @@ export class ReportAuthorizationError extends Error {
   }
 }
 
-type ReportSource = {
+export type ReportSource = {
   nodes: GovernanceHierarchyNode[];
   assignments: GovernanceHierarchyAssignment[];
   sites: GovernedSharePointSite[];
@@ -106,6 +108,10 @@ type ReportSource = {
   inventory: SensitivityInventoryItem[];
   runs: SensitivityScanRun[];
   reportableLabelIds: Set<string>;
+  siteSummaries?: SiteSensitivitySummary[];
+  inventoryCoverage?: "scope" | "selected-site";
+  now?: Date;
+  nextScheduledScan?: string;
 };
 
 const STATUS_VALUES: ScanStatus[] = [
@@ -129,6 +135,12 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     source.sites,
     source.siteMappings,
   );
+  if (request.filters.nodeId && !scope.visibleNodeIds.includes(request.filters.nodeId)) {
+    throw new ReportAuthorizationError();
+  }
+  if (request.filters.siteId && !scope.allowedSiteIds.includes(request.filters.siteId)) {
+    throw new ReportAuthorizationError();
+  }
   const pageSize = Math.min(Math.max(request.filters.pageSize ?? 6, 1), 50);
   const requestedPage = Math.max(request.filters.page ?? 1, 1);
 
@@ -155,6 +167,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
       number
     >,
     freshness: "unknown" as const,
+    detailsRequireSiteSelection: false,
   };
 
   if (scope.assignedNodeIds.length === 0) {
@@ -166,27 +179,35 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   }
 
   const allowedSites = new Set(scope.allowedSiteIds);
+  const summaryBySite = new Map(
+    (source.siteSummaries ?? [])
+      .filter((summary) => allowedSites.has(summary.siteId))
+      .map((summary) => [summary.siteId, summary]),
+  );
+  const useSummaryProjection = source.inventoryCoverage === "selected-site";
   const scopedInventory = source.inventory.filter(
     (item) => allowedSites.has(item.siteId) && !item.deletedAt,
   );
-  const statusCounts = Object.fromEntries(
-    STATUS_VALUES.map((status) => [
-      status,
-      scopedInventory.filter((item) => item.scanStatus === status).length,
-    ]),
-  ) as Record<ScanStatus, number>;
+  const statusCounts = Object.fromEntries(STATUS_VALUES.map((status) => [
+    status,
+    useSummaryProjection
+      ? [...summaryBySite.values()].reduce(
+          (sum, summary) => sum + summary.statusCounts[status],
+          0,
+        )
+      : scopedInventory.filter((item) => item.scanStatus === status).length,
+  ])) as Record<ScanStatus, number>;
 
   const isReportable = (item: SensitivityInventoryItem) =>
     item.sensitivityLabels.some((label) => source.reportableLabelIds.has(label.id));
   const sensitiveRows = dedupe(scopedInventory.filter(isReportable));
-  const scopeSensitiveCount = sensitiveRows.length;
+  const scopeSensitiveCount = useSummaryProjection
+    ? [...summaryBySite.values()].reduce((sum, summary) => sum + summary.sensitiveCount, 0)
+    : sensitiveRows.length;
 
   let filtered = sensitiveRows;
   let explorerSiteIds = new Set(scope.allowedSiteIds);
   if (request.filters.nodeId) {
-    if (!scope.visibleNodeIds.includes(request.filters.nodeId)) {
-      throw new ReportAuthorizationError();
-    }
     const nodeSites = new Set(
       siteIdsUnderNode(
         request.filters.nodeId,
@@ -198,9 +219,6 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     );
     explorerSiteIds = nodeSites;
     filtered = filtered.filter((item) => nodeSites.has(item.siteId));
-  }
-  if (request.filters.siteId) {
-    if (!allowedSites.has(request.filters.siteId)) throw new ReportAuthorizationError();
   }
   if (request.filters.library) {
     filtered = filtered.filter((item) => item.libraryName === request.filters.library);
@@ -224,9 +242,9 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     filtered = filtered.filter((item) => item.scanStatus === request.filters.scanStatus);
   }
 
-  const effectiveNow = new Date(
-    request.scenario === "stale" ? "2026-07-18T08:00:00Z" : "2026-07-14T08:00:00Z",
-  );
+  const effectiveNow = request.scenario === "stale"
+    ? new Date("2026-07-18T08:00:00Z")
+    : source.now ?? new Date("2026-07-14T08:00:00Z");
   const isFreshTimestamp = (value: string) =>
     effectiveNow.getTime() - new Date(value).getTime() <= 24 * 60 * 60 * 1000;
   const isFresh = (item: SensitivityInventoryItem) => isFreshTimestamp(item.scannedAt);
@@ -279,7 +297,12 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
       name: node.name,
       type: node.type,
       depth: nodeDepth(node.id),
-      count: dedupe(filtered.filter((item) => siteIds.has(item.siteId))).length,
+      count: useSummaryProjection
+        ? [...siteIds].reduce(
+            (sum, siteId) => sum + (summaryBySite.get(siteId)?.sensitiveCount ?? 0),
+            0,
+          )
+        : dedupe(filtered.filter((item) => siteIds.has(item.siteId))).length,
       siteCount: siteIds.size,
       childCount: visibleNodes.filter((candidate) => candidate.parentId === node.id).length,
     };
@@ -310,12 +333,13 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     .filter((site) => site.active && explorerSiteIds.has(site.id))
     .map((site) => {
       const siteItems = scopedInventory.filter((item) => item.siteId === site.id);
-      const lastScannedAt = siteItems
+      const summary = summaryBySite.get(site.id);
+      const lastScannedAt = summary?.lastScannedAt ?? siteItems
         .map((item) => item.scannedAt)
         .sort((a, b) => b.localeCompare(a))[0];
-      const hasAttention = siteItems.some((item) =>
-        ["locked", "throttled", "failed"].includes(item.scanStatus),
-      );
+      const hasAttention = summary
+        ? summary.statusCounts.locked + summary.statusCounts.throttled + summary.statusCounts.failed > 0
+        : siteItems.some((item) => ["locked", "throttled", "failed"].includes(item.scanStatus));
       const mapping = activeMappingBySite.get(site.id);
       const node = mapping ? visibleNodeById.get(mapping.nodeId) : undefined;
       const scanState = !lastScannedAt
@@ -331,29 +355,47 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
         webUrl: `https://${site.hostname}${site.path}`,
         nodeId: mapping?.nodeId ?? "unmapped",
         nodeName: node?.name ?? "Unmapped",
-        count: dedupe(siteFacetRows.filter((item) => item.siteId === site.id)).length,
+        count: useSummaryProjection
+          ? summary?.sensitiveCount ?? 0
+          : dedupe(siteFacetRows.filter((item) => item.siteId === site.id)).length,
         lastScannedAt,
         scanState,
       } as const;
     })
     .sort((a, b) => b.count - a.count || a.siteName.localeCompare(b.siteName));
-  const libraryRollups = [...libraryMap.values()].map((value) => ({
-    siteId: value.siteId,
-    siteName: value.siteName,
-    libraryName: value.libraryName,
-    count: dedupe(value.items).length,
-  }));
+  const libraryRollups = useSummaryProjection
+    ? [...summaryBySite.values()].flatMap((summary) => summary.libraryCounts.map((library) => ({
+        siteId: summary.siteId,
+        siteName: summary.siteName,
+        libraryName: library.libraryName,
+        count: library.sensitiveCount,
+      })))
+    : [...libraryMap.values()].map((value) => ({
+        siteId: value.siteId,
+        siteName: value.siteName,
+        libraryName: value.libraryName,
+        count: dedupe(value.items).length,
+      }));
 
-  const allLibraries = [...new Set(scopedInventory.map((item) => item.libraryName))].sort();
-  const allLabels = [...new Map(
-    sensitiveRows.flatMap((item) => item.sensitivityLabels)
-      .filter((label) => source.reportableLabelIds.has(label.id))
-      .map((label) => [label.id, { id: label.id, name: label.displayName ?? label.id }]),
+  const allLibraries = [...new Set(useSummaryProjection
+    ? [...summaryBySite.values()].flatMap((summary) =>
+        summary.libraryCounts.map((library) => library.libraryName),
+      )
+    : scopedInventory.map((item) => item.libraryName))].sort();
+  const allLabels = [...new Map((useSummaryProjection
+    ? [...summaryBySite.values()].flatMap((summary) => summary.labelCounts)
+    : sensitiveRows.flatMap((item) => item.sensitivityLabels))
+    .filter((label) => source.reportableLabelIds.has(label.id))
+    .map((label) => [label.id, { id: label.id, name: label.displayName ?? label.id }]),
   ).values()].sort((a, b) => a.name.localeCompare(b.name));
   const completedRun = source.runs.find((run) => run.status === "succeeded");
   const partialRun = source.runs.find((run) => run.status === "partial");
-  const latestRun = request.scenario === "partial" ? partialRun : completedRun;
-  const freshness = request.scenario === "partial" ? "partial" : request.scenario === "stale" ? "stale" : "current";
+  const latestRun = request.scenario === "partial" ? partialRun : completedRun ?? partialRun;
+  const freshness = request.scenario === "partial" || latestRun?.status === "partial"
+    ? "partial"
+    : request.scenario === "stale"
+      ? "stale"
+      : "current";
 
   return {
     state: scopeSensitiveCount === 0 ? "zero-sensitive" : "ready",
@@ -365,7 +407,9 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     scopeSensitiveCount,
     filteredSensitiveCount,
     siteCount: scope.allowedSiteIds.length,
-    libraryCount: new Set(scopedInventory.map((item) => `${item.siteId}:${item.libraryName}`)).size,
+    libraryCount: useSummaryProjection
+      ? [...summaryBySite.values()].reduce((sum, summary) => sum + summary.libraryCount, 0)
+      : new Set(scopedInventory.map((item) => `${item.siteId}:${item.libraryName}`)).size,
     rows,
     page,
     pageSize,
@@ -383,9 +427,10 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     },
     statusCounts,
     latestRun,
-    lastSuccessfulScan: completedRun?.finishedAt,
-    nextScheduledScan: "2026-07-15T01:00:00+07:00",
+    lastSuccessfulScan: completedRun?.finishedAt ?? latestRun?.finishedAt,
+    nextScheduledScan: source.nextScheduledScan ?? "2026-07-15T01:00:00+07:00",
     freshness,
+    detailsRequireSiteSelection: useSummaryProjection && !request.filters.siteId,
   };
 }
 

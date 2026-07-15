@@ -20,6 +20,7 @@ import {
   ReportAuthorizationError,
   type ReportRequest,
 } from "../src/report/report-service";
+import { buildSiteSensitivitySummary } from "../src/domain/site-summary";
 import { FixtureScanner } from "../src/scanner/fixture-scanner";
 import { scheduledScanTargets } from "../src/scanner/contracts";
 
@@ -136,6 +137,24 @@ test("requesting a sibling branch is denied at the report boundary", () => {
   );
 });
 
+test("out-of-scope filters are denied before no-scan and no-assignment empty states", () => {
+  assert.throws(
+    () => buildReport(source, {
+      ...request("prach@contoso.com"),
+      scenario: "no-scan",
+      filters: { siteId: "site-ledger" },
+    }),
+    ReportAuthorizationError,
+  );
+  assert.throws(
+    () => buildReport(source, {
+      ...request("somchai@contoso.com"),
+      filters: { nodeId: "evp-corporate" },
+    }),
+    ReportAuthorizationError,
+  );
+});
+
 test("counts reconcile with distinct filtered file rows", () => {
   const withDuplicate = { ...source, inventory: [...inventoryItems, inventoryItems[0]] };
   const report = buildReport(withDuplicate, {
@@ -185,6 +204,31 @@ test("hierarchy rollups expose scalable navigation metadata", () => {
     },
     { parentId: "evp-corporate", siteCount: 4, childCount: 2 },
   );
+});
+
+test("Site summaries keep large-scope counts without loading every file partition", () => {
+  const auroraItems = inventoryItems.filter((item) => item.siteId === "site-aurora");
+  const summary = buildSiteSensitivitySummary({
+    tenantId: auroraItems[0].tenantId,
+    siteId: "site-aurora",
+    siteName: "Project Aurora",
+    items: auroraItems,
+    reportableLabelIds: REPORTABLE_LABEL_IDS,
+    updatedAt: "2026-07-14T08:00:00Z",
+  });
+  const report = buildReport(
+    {
+      ...source,
+      inventory: [],
+      siteSummaries: [summary],
+      inventoryCoverage: "selected-site",
+    },
+    request("nipaporn@contoso.com"),
+  );
+  assert.equal(report.scopeSensitiveCount, 2);
+  assert.equal(report.siteRollups.find((site) => site.siteId === "site-aurora")?.count, 2);
+  assert.equal(report.rows.length, 0);
+  assert.equal(report.detailsRequireSiteSelection, true);
 });
 
 test("zero-sensitive scope is distinct from no scan", () => {

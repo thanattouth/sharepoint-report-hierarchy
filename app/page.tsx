@@ -2,6 +2,7 @@ import type { SensitivityInventoryItem } from "@/src/domain/types";
 import Link from "next/link";
 import {
   getDemoOptions,
+  getReportMode,
   loadReportPage,
   type RawSearchParams,
 } from "@/src/report/data-access";
@@ -73,9 +74,11 @@ export default async function Home({
   const capability = getSingle(params.capability) === "ReportViewer" ? "ReportViewer" : "ReportAdmin";
   const scenario = getSingle(params.scenario) ?? "current";
   const persona = personas.find((candidate) => candidate.upn === selectedUser) ?? personas[0];
+  let reportMode: "fixture" | "azure-table" = "fixture";
   let report = null;
   let loadError: "denied" | "cache" | null = null;
   try {
+    reportMode = getReportMode();
     report = await loadReportPage(params);
   } catch (error) {
     loadError = error instanceof ReportAuthorizationError ? "denied" : "cache";
@@ -84,7 +87,7 @@ export default async function Home({
   const preserved = {
     user: selectedUser,
     capability,
-    scenario,
+    scenario: reportMode === "azure-table" ? "current" : scenario,
   };
   const exportParams = new URLSearchParams();
   for (const [key, raw] of Object.entries(params)) {
@@ -174,7 +177,7 @@ export default async function Home({
           <section className="demo-panel" aria-labelledby="demo-heading">
             <div className="demo-copy">
               <span className="demo-dot" aria-hidden="true" />
-              <div><strong id="demo-heading">Deterministic demo mode</strong><small>สลับ persona และ scan state เพื่อทดสอบ authorization</small></div>
+              <div><strong id="demo-heading">{reportMode === "azure-table" ? "Azure cache pilot" : "Deterministic demo mode"}</strong><small>{reportMode === "azure-table" ? "ข้อมูลไฟล์มาจาก scheduled Azure Table cache · persona ยังใช้พิสูจน์ hierarchy scope" : "สลับ persona และ scan state เพื่อทดสอบ authorization"}</small></div>
             </div>
             <form className="demo-controls" method="get">
               <label>UPN
@@ -188,7 +191,7 @@ export default async function Home({
                   <option value="ReportViewer">ReportViewer</option>
                 </select>
               </label>
-              <label>Scan state
+              {reportMode === "fixture" ? <label>Scan state
                 <select name="scenario" defaultValue={scenario}>
                   <option value="current">Current</option>
                   <option value="partial">Partial</option>
@@ -196,7 +199,7 @@ export default async function Home({
                   <option value="no-scan">No completed scan</option>
                   <option value="cache-error">Cache unavailable</option>
                 </select>
-              </label>
+              </label> : <input type="hidden" name="scenario" value="current" />}
               <button className="button button-demo" type="submit">Apply persona</button>
             </form>
           </section>
@@ -262,7 +265,7 @@ export default async function Home({
                       <div className="resolved-scope-main">
                         <span className="resolved-scope-mark" aria-hidden="true">{resolvedScopeType.slice(0, 1)}</span>
                         <div>
-                          <p className="eyebrow">RESOLVED DEMO SCOPE</p>
+                          <p className="eyebrow">{reportMode === "azure-table" ? "RESOLVED PILOT SCOPE" : "RESOLVED DEMO SCOPE"}</p>
                           <h2 id="resolved-scope-heading">{resolvedScopeName}</h2>
                           <p>{resolvedScopeType} assignment รวม Sites ที่ map กับ node นี้และ descendants โดย server</p>
                         </div>
@@ -342,7 +345,7 @@ export default async function Home({
                               <td><details className="row-details"><summary aria-label={`ดูรายละเอียด ${item.fileName}`}>•••</summary><div><b>Stable identity</b><code>{item.siteId}:{item.driveId}:{item.itemId}</code><b>Label ID</b><code>{label?.id}</code>{item.errorMessage ? <p>{item.errorMessage}</p> : null}</div></details></td>
                             </tr>;
                           })}
-                          {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">ไม่พบ Sensitive file ที่ตรงกับ filters ปัจจุบัน</td></tr> : null}
+                          {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">{report.detailsRequireSiteSelection ? "เลือก SharePoint Site ที่ได้รับอนุญาตจาก Site explorer ก่อนโหลด file-level inventory" : "ไม่พบ Sensitive file ที่ตรงกับ filters ปัจจุบัน"}</td></tr> : null}
                         </tbody>
                       </table>
                     </div>
