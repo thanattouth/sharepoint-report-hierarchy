@@ -58,14 +58,14 @@ AZURE_TABLE_SCAN_RUN_NAME=SensitivityScanRuns
 AZURE_TABLE_DELTA_STATE_NAME=SensitivityDeltaState
 ```
 
-After RBAC propagation, load the environment without printing it and run:
+After RBAC propagation, load the local environment with Node's env-file parser and run:
 
 ```bash
-set -a
-source .env.p4.local
-set +a
-npm run p5:persist-bounded
+npm run p5:persist-bounded:local
 ```
+
+Do not shell-source the populated file. JSON display-name maps and secret characters can be
+altered or interpreted by the shell; Node's env-file parser loads them without executing text.
 
 `azure-cli` is restricted to the explicitly approved local pilot. Grant that signed-in user the
 Table role only on this isolated account. A hosted worker must use `managed-identity` and replace
@@ -114,7 +114,12 @@ Before handoff:
 - Security: Shared Key disabled, OAuth default, HTTPS only, minimum TLS 1.2
 - Tables: `SensitivityInventory`, `SensitivityScanRuns`, `SensitivityDeltaState`,
   `SiteLabelSummary`
-- RBAC: pending. The deployer is Subscription Contributor and cannot create role assignments.
-  Entity access was verified as denied. An Owner, User Access Administrator, or Role Based Access
-  Control Administrator must grant `Storage Table Data Contributor` at the storage-account scope
-  before the bounded persistence run.
+- RBAC: `Storage Table Data Contributor` is currently inherited at subscription scope. The user
+  explicitly accepted this broader temporary scope for the pilot; narrow it to the storage
+  account before production promotion.
+- Cross-tenant transfer approval: the user confirmed that every bounded DGCS file is a test file
+  and approved storing its metadata from `baht.net` in the `m365.co.th` Azure Table pilot.
+- First persisted run: `bounded-f0621ef1-abb7-44dc-874a-4429cde9601f`; 16 current inventory
+  entities, 12 reportable-label successes, 4 unsupported, 0 failed, and status `partial`.
+- `SensitivityDeltaState` remained empty because the bounded traversal must not establish a
+  production delta cursor.

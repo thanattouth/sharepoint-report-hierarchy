@@ -14,6 +14,7 @@
     "p4:check": "node --import tsx scripts/p4-connection-check.ts",
     "p4:bounded": "node --import tsx scripts/p4-bounded-pilot.ts",
     "p5:persist-bounded": "node --import tsx scripts/p5-persist-bounded-pilot.ts",
+    "p5:persist-bounded:local": "node --env-file=.env.p4.local --import tsx scripts/p5-persist-bounded-pilot.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

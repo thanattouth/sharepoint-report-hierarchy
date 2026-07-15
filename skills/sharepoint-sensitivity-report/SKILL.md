@@ -80,6 +80,8 @@ Enforce all of these on every change:
 - Persist a bounded pilot only after explicit customer approval for that Site, libraries, and
   cache. Use an isolated customer-owned store, keep the same hard Graph bounds, write inventory
   before the terminal run record, and never save a delta cursor from a truncated traversal.
+- For a cross-tenant cache, obtain explicit approval that identifies the source tenant,
+  destination tenant, metadata fields, and permitted test data before transferring anything.
 - When Graph and Azure Storage belong to different Entra tenants, configure two tenant-pinned
   credentials. Never reuse the Graph credential for Table or make either identity multi-tenant
   merely to simplify the pilot. Limit Azure CLI user auth to the approved local run and use
@@ -91,6 +93,9 @@ Enforce all of these on every change:
   assignments, deploy storage without the conditional assignment and stop before data access
   until an authorized owner grants the scoped Table data role. Never enable Shared Key to bypass
   missing RBAC authority.
+- Load populated local env files with the runtime's non-executing env-file parser. Do not shell-
+  source files containing secrets or JSON configuration because shell evaluation can corrupt
+  values or execute special characters.
 - Record production-critical permission, storage, schema, retention, and deployment decisions in ADRs/runbooks. Require a migration and rollback plan for persistent schema changes.
 - Review dependency vulnerabilities before a release; do not apply breaking automated fixes without validating the Sites build and runtime.
 
