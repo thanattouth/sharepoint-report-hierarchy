@@ -162,6 +162,22 @@ Do not request real Graph permissions or broaden site access before this checkpo
 
 Do not expand to production-wide scanning during P4.
 
+### Validate labels with controlled fixtures
+
+- Create synthetic Office fixtures with no production or personal data. State the intended
+  library, intended label, and expected scanner result inside each fixture.
+- Upload fixtures through an approved delegated user context and address the exact document
+  library drive. Never grant write permission to the read-only scanner merely to prepare test
+  data, and never infer a file label from a library name such as `Secret`.
+- Apply the real Microsoft Purview label through an approved user-context workflow. Record the
+  immutable label ID expected from Graph rather than relying on the display name alone.
+- Run the bounded diagnostic before and after label application. An immediately uploaded,
+  unlabeled Office file may return `415 notSupported`; retain that as a distinct item outcome,
+  allow for service propagation, and require a successful post-label extraction before passing
+  the P4 label-detection gate.
+- Keep fixture upload, label assignment, and scanner verification auditable as separate actions.
+  Do not download content or widen the approved Site/library/file bounds during verification.
+
 ### P5 scheduled Azure pilot
 
 Proceed only after the P4 exit gate and storage decision:
