@@ -17,6 +17,7 @@ export type AzureApiReportCacheConfig = {
 
 export type AzureReportCacheConfig = {
   mode: "azure-table";
+  siteSource: "single-site" | "mapping-table";
   cacheTenantId: string;
   reportableLabelIds: Set<string>;
   pilotSite: GovernedSharePointSite;
@@ -87,9 +88,14 @@ export function loadReportCacheConfig(
   if (nextScheduledScan && Number.isNaN(Date.parse(nextScheduledScan))) {
     throw new Error("REPORT_NEXT_SCHEDULED_SCAN must be an ISO-compatible timestamp");
   }
+  const siteSource = env.REPORT_SITE_SOURCE?.trim() || "single-site";
+  if (siteSource !== "single-site" && siteSource !== "mapping-table") {
+    throw new Error("REPORT_SITE_SOURCE must be single-site or mapping-table");
+  }
 
   return {
     mode,
+    siteSource,
     cacheTenantId: uuid(
       required(env, "REPORT_CACHE_TENANT_ID"),
       "REPORT_CACHE_TENANT_ID",

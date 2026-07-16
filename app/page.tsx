@@ -263,7 +263,7 @@ export default async function Home({
                   <span className="empty-icon">✓</span>
                   <div><p className="eyebrow">COMPLETED SCAN</p><h2>ไม่พบ Sensitive file ใน scope นี้</h2><p>Completed inventory มี {Object.values(report.statusCounts).reduce((sum, count) => sum + count, 0)} รายการ และไม่พบ configured reportable label ID</p></div>
                 </section>
-              ) : (
+              ) : null}
                 <>
                   <section className="scope-site-stack">
                     <section className="resolved-scope" aria-labelledby="resolved-scope-heading">
@@ -357,7 +357,6 @@ export default async function Home({
                     <div className="pagination"><span>หน้า {report.page} จาก {report.pageCount}</span><div><a className={report.page <= 1 ? "disabled" : ""} aria-disabled={report.page <= 1} href={makeHref(params, { page: String(Math.max(report.page - 1, 1)) })}>← ก่อนหน้า</a><a className={report.page >= report.pageCount ? "disabled" : ""} aria-disabled={report.page >= report.pageCount} href={makeHref(params, { page: String(Math.min(report.page + 1, report.pageCount)) })}>ถัดไป →</a></div></div>
                   </section>
                 </>
-              )}
 
               <section className="panel scan-panel" id="scan-status">
                 <div className="panel-heading"><div><p className="eyebrow">SCHEDULED CACHE HEALTH</p><h2>Latest scheduled scan</h2><p>Scanner ทำงานตามรอบและเขียน inventory ล่วงหน้า หน้า Report ไม่เรียก Microsoft Graph</p></div><span className={`run-status run-${report.latestRun?.status ?? "unknown"}`}>{report.latestRun?.status ?? "unknown"}</span></div>

@@ -1,72 +1,75 @@
 targetScope = 'resourceGroup'
 
-@description('Azure region for the report API and its private runtime resources.')
+@description('Azure region for the scheduled scanner and its private runtime resources.')
 param location string = resourceGroup().location
 
-@description('Existing isolated Azure Storage account that contains the report cache tables.')
+@description('Existing isolated Azure Storage account that contains scanner cache tables.')
 param reportCacheStorageAccountName string
 
-@description('Source Microsoft 365 tenant ID stored in report cache partition keys.')
+@description('Microsoft 365 tenant that owns the allowlisted SharePoint Site.')
 @secure()
-param reportCacheTenantId string
+param scannerTenantId string
+
+@description('Multi-tenant scanner application client ID hosted in the Azure subscription tenant.')
+@secure()
+param scannerClientId string
+
+@description('Canonical Graph Site ID for the bounded scheduled pilot.')
+@secure()
+param allowedSiteId string
+
+@allowed([
+  'single-site'
+  'registry'
+])
+@description('Fail-closed scanner scope mode. Keep single-site until the reviewed registry is ready.')
+param scannerScopeMode string = 'single-site'
+
+@description('Comma-separated exact document library names permitted for this pilot.')
+param allowedLibraryNames string = 'Secret,Confidential'
 
 @description('Comma-separated immutable sensitivity label IDs included in report counts.')
 @secure()
 param reportableLabelIds string
 
-@description('Canonical Graph Site ID for the bounded pilot Site.')
+@description('Optional JSON object mapping approved label IDs to display names.')
 @secure()
-param pilotSiteId string
+param labelDisplayNamesJson string
 
-@description('Display name for the bounded pilot Site.')
-@secure()
-param pilotSiteName string
+@description('Nightly incremental schedule in six-field NCRONTAB UTC format.')
+param nightlySchedule string = '0 0 18 * * *'
 
-@description('SharePoint hostname for the bounded pilot Site.')
-@secure()
-param pilotSiteHostname string
+@description('Weekly reconciliation schedule in six-field NCRONTAB UTC format.')
+param reconciliationSchedule string = '0 0 19 * * 6'
 
-@description('Server-relative path for the bounded pilot Site.')
-@secure()
-param pilotSitePath string
+@description('Keep both timer triggers disabled until the bounded manual proof succeeds.')
+param schedulesDisabled bool = true
 
-@description('Existing business hierarchy node ID mapped to the bounded pilot Site.')
-@secure()
-param pilotSiteNodeId string
-
-@description('Comma-separated fixture UPNs permitted only for the no-login pilot proof.')
-@secure()
-param pilotAllowedUpns string
-
-@description('Maximum number of Sites whose detail partitions may be loaded without an explicit Site selection.')
-@minValue(1)
-@maxValue(100)
-param maxDetailSites int = 25
-
-@description('Create RBAC assignments. Set false only when an authorized administrator will apply them separately.')
+@description('Create RBAC assignments. Set false only when an authorized administrator applies them separately.')
 param assignManagedIdentityRoles bool = true
 
-var suffix = take(uniqueString(subscription().id, resourceGroup().id, location), 9)
-var functionAppName = 'func-sp-sens-report-${suffix}'
-var functionPlanName = 'plan-sp-sens-report-${suffix}'
-var hostStorageAccountName = 'stfnreport${suffix}'
-var hostIdentityName = 'id-sp-sens-report-host'
-var reportReaderIdentityName = 'id-sp-sens-report-reader'
-var logAnalyticsName = 'log-sp-sens-report-${suffix}'
-var applicationInsightsName = 'appi-sp-sens-report-${suffix}'
+var suffix = take(uniqueString(subscription().id, resourceGroup().id, location, 'scanner'), 9)
+var functionAppName = 'func-sp-sens-scan-${suffix}'
+var functionPlanName = 'plan-sp-sens-scan-${suffix}'
+var hostStorageAccountName = 'stfnscan${suffix}'
+var hostIdentityName = 'id-sp-sens-scan-host'
+var scannerIdentityName = 'id-sp-sens-scan-workload'
+var logAnalyticsName = 'log-sp-sens-scan-${suffix}'
+var applicationInsightsName = 'appi-sp-sens-scan-${suffix}'
 var deploymentContainerName = 'app-package-${suffix}'
+var jobQueueName = 'sensitivity-scan-jobs'
 
 var storageBlobDataOwnerRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 )
+var storageQueueDataContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
+)
 var storageTableDataContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
-)
-var storageTableDataReaderRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '76199698-9eea-4c19-bc75-cec21354c6b6'
 )
 var monitoringMetricsPublisherRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -108,13 +111,23 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   }
 }
 
+resource hostQueueService 'Microsoft.Storage/storageAccounts/queueServices@2023-05-01' = {
+  parent: hostStorage
+  name: 'default'
+}
+
+resource jobQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: hostQueueService
+  name: jobQueueName
+}
+
 resource hostIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: hostIdentityName
   location: location
 }
 
-resource reportReaderIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: reportReaderIdentityName
+resource scannerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: scannerIdentityName
   location: location
 }
 
@@ -128,6 +141,16 @@ resource hostBlobOwnerRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
+resource hostQueueContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignManagedIdentityRoles) {
+  name: guid(hostStorage.id, hostIdentity.id, storageQueueDataContributorRoleId)
+  scope: hostStorage
+  properties: {
+    principalId: hostIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: storageQueueDataContributorRoleId
+  }
+}
+
 resource hostTableContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignManagedIdentityRoles) {
   name: guid(hostStorage.id, hostIdentity.id, storageTableDataContributorRoleId)
   scope: hostStorage
@@ -138,13 +161,13 @@ resource hostTableContributorRole 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource reportCacheReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignManagedIdentityRoles) {
-  name: guid(reportCache.id, reportReaderIdentity.id, storageTableDataReaderRoleId)
+resource scannerCacheContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (assignManagedIdentityRoles) {
+  name: guid(reportCache.id, scannerIdentity.id, storageTableDataContributorRoleId)
   scope: reportCache
   properties: {
-    principalId: reportReaderIdentity.properties.principalId
+    principalId: scannerIdentity.properties.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: storageTableDataReaderRoleId
+    roleDefinitionId: storageTableDataContributorRoleId
   }
 }
 
@@ -204,7 +227,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${hostIdentity.id}': {}
-      '${reportReaderIdentity.id}': {}
+      '${scannerIdentity.id}': {}
     }
   }
   properties: {
@@ -232,7 +255,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         version: '22'
       }
       scaleAndConcurrency: {
-        maximumInstanceCount: 20
+        maximumInstanceCount: 5
         instanceMemoryMB: 2048
       }
     }
@@ -248,27 +271,34 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       AzureWebJobsStorage__credential: 'managedidentity'
       FUNCTIONS_EXTENSION_VERSION: '~4'
       FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR: '1'
-      REPORT_DATA_SOURCE: 'azure-table'
-      REPORT_SITE_SOURCE: 'mapping-table'
-      REPORT_CACHE_TENANT_ID: reportCacheTenantId
-      REPORT_REPORTABLE_LABEL_IDS: reportableLabelIds
-      REPORT_PILOT_SITE_ID: pilotSiteId
-      REPORT_PILOT_SITE_NAME: pilotSiteName
-      REPORT_PILOT_SITE_HOSTNAME: pilotSiteHostname
-      REPORT_PILOT_SITE_PATH: pilotSitePath
-      REPORT_PILOT_SITE_NODE_ID: pilotSiteNodeId
-      REPORT_PILOT_ALLOWED_UPNS: pilotAllowedUpns
-      REPORT_MAX_DETAIL_SITES: string(maxDetailSites)
+      'AzureWebJobs.nightlySchedule.Disabled': string(schedulesDisabled)
+      'AzureWebJobs.weeklyReconciliation.Disabled': string(schedulesDisabled)
+      SCANNER_JOB_QUEUE_NAME: jobQueue.name
+      SCANNER_HOST_STORAGE_ACCOUNT_NAME: hostStorage.name
+      SCANNER_HOST_MANAGED_IDENTITY_CLIENT_ID: hostIdentity.properties.clientId
+      SCANNER_AUTH_MODE: 'federated-identity'
+      SCANNER_TENANT_ID: scannerTenantId
+      SCANNER_CLIENT_ID: scannerClientId
+      SCANNER_MANAGED_IDENTITY_CLIENT_ID: scannerIdentity.properties.clientId
+      SCANNER_SCOPE_MODE: scannerScopeMode
+      SCANNER_BASELINE_WINDOW_OPEN: 'false'
+      SCANNER_ALLOWED_SITE_ID: allowedSiteId
+      SCANNER_ALLOWED_LIBRARY_NAMES: allowedLibraryNames
+      SCANNER_REPORTABLE_LABEL_IDS: reportableLabelIds
+      SCANNER_LABEL_DISPLAY_NAMES_JSON: labelDisplayNamesJson
+      SCANNER_MAX_CONCURRENCY: '4'
+      SCANNER_MAX_RETRIES: '3'
+      SCANNER_NIGHTLY_SCHEDULE: nightlySchedule
+      SCANNER_RECONCILIATION_SCHEDULE: reconciliationSchedule
       AZURE_STORAGE_ACCOUNT_NAME: reportCache.name
       AZURE_STORAGE_TENANT_ID: subscription().tenantId
-      AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID: reportReaderIdentity.properties.clientId
+      AZURE_STORAGE_MANAGED_IDENTITY_CLIENT_ID: scannerIdentity.properties.clientId
       AZURE_TABLE_AUTH_MODE: 'managed-identity'
       AZURE_TABLE_INVENTORY_NAME: 'SensitivityInventory'
       AZURE_TABLE_SCAN_RUN_NAME: 'SensitivityScanRuns'
       AZURE_TABLE_DELTA_STATE_NAME: 'SensitivityDeltaState'
       AZURE_TABLE_SITE_SUMMARY_NAME: 'SiteLabelSummary'
       AZURE_TABLE_SITE_NAME: 'ScannerSites'
-      AZURE_TABLE_SITE_MAPPING_NAME: 'HierarchySiteMappings'
     }
   }
 }
@@ -277,7 +307,11 @@ output functionAppName string = functionApp.name
 output functionAppHostname string = functionApp.properties.defaultHostName
 output applicationInsightsName string = applicationInsights.name
 output hostStorageAccountName string = hostStorage.name
+output jobQueueName string = jobQueue.name
+output hostIdentityClientId string = hostIdentity.properties.clientId
 output hostIdentityPrincipalId string = hostIdentity.properties.principalId
-output reportReaderIdentityClientId string = reportReaderIdentity.properties.clientId
-output reportReaderIdentityPrincipalId string = reportReaderIdentity.properties.principalId
+output scannerIdentityClientId string = scannerIdentity.properties.clientId
+output scannerIdentityPrincipalId string = scannerIdentity.properties.principalId
+output scannerIdentityResourceId string = scannerIdentity.id
+output schedulesDisabled bool = schedulesDisabled
 output managedIdentityRolesCreated bool = assignManagedIdentityRoles

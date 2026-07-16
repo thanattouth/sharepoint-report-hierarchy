@@ -26,6 +26,7 @@ export interface InventoryStore {
 }
 
 export interface ScanRunStore {
+  get(runId: string): Promise<SensitivityScanRun | null>;
   listRecent(): Promise<SensitivityScanRun[]>;
   save(run: SensitivityScanRun): Promise<void>;
 }
@@ -38,4 +39,16 @@ export interface DeltaStateStore {
 export interface SiteSummaryStore {
   listBySiteIds(siteIds: string[]): Promise<SiteSensitivitySummary[]>;
   save(summary: SiteSensitivitySummary): Promise<void>;
+}
+
+export interface SiteStore {
+  get(siteId: string): Promise<GovernedSharePointSite | null>;
+  listScanEnabled(): Promise<GovernedSharePointSite[]>;
+  listByBaselineWave(wave: number): Promise<GovernedSharePointSite[]>;
+  save(site: GovernedSharePointSite): Promise<void>;
+}
+
+export interface SiteMappingStore {
+  listActive(): Promise<GovernanceHierarchySiteMapping[]>;
+  save(mapping: GovernanceHierarchySiteMapping): Promise<void>;
 }

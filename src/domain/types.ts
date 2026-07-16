@@ -15,6 +15,13 @@ export type GovernedSharePointSite = {
   path: string;
   active: boolean;
   scanEnabled: boolean;
+  scanLibraryIds?: string[];
+  baselineWave?: number;
+  baselineState?: "candidate" | "excluded" | "approved" | "completed" | "skipped";
+  baselineExclusionReason?: string;
+  baselineExcludedAt?: string;
+  baselineSkipReason?: string;
+  baselineSkippedAt?: string;
 };
 
 export type GovernanceHierarchySiteMapping = {

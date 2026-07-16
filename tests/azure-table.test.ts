@@ -8,12 +8,16 @@ import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromScanRunEntity,
+  fromSiteEntity,
+  fromSiteMappingEntity,
   fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
   toScanRunEntity,
+  toSiteEntity,
+  toSiteMappingEntity,
   toSiteSummaryEntity,
 } from "../src/stores/azure-table/codec";
 import { AzureTableInventoryStore } from "../src/stores/azure-table/stores";
@@ -58,6 +62,8 @@ test("Azure Table configuration fails closed and supplies schema table names", (
   assert.equal(config.scanRunTableName, "SensitivityScanRuns");
   assert.equal(config.deltaStateTableName, "SensitivityDeltaState");
   assert.equal(config.siteSummaryTableName, "SiteLabelSummary");
+  assert.equal(config.siteTableName, "ScannerSites");
+  assert.equal(config.siteMappingTableName, "HierarchySiteMappings");
   assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
   assert.throws(
     () => loadAzureTableStoreConfig({
@@ -68,6 +74,33 @@ test("Azure Table configuration fails closed and supplies schema table names", (
     }),
     /requires managed-identity/,
   );
+});
+
+test("Azure Table hierarchy-to-Site mapping codec preserves the explicit placement", () => {
+  const mapping = { nodeId: "evp-corporate", siteId, active: true };
+  assert.deepEqual(fromSiteMappingEntity({
+    ...toSiteMappingEntity(tenantId, mapping),
+    etag: "W/metadata",
+    timestamp: new Date("2026-07-16T00:00:00.000Z"),
+  }), mapping);
+});
+
+test("Azure Table Site registry codec preserves flat scan configuration", () => {
+  const site = {
+    id: siteId,
+    name: "DGCS",
+    hostname: "contoso.sharepoint.com",
+    path: "/sites/DGCS",
+    active: true,
+    scanEnabled: true,
+    scanLibraryIds: ["drive-secret", "drive-confidential"],
+    baselineWave: 1,
+  };
+  assert.deepEqual(fromSiteEntity({
+    ...toSiteEntity(tenantId, site),
+    etag: "W/metadata",
+    timestamp: new Date("2026-07-16T00:00:00.000Z"),
+  }), site);
 });
 
 test("Site summary materializes distinct reportable counts and round-trips through Table", () => {

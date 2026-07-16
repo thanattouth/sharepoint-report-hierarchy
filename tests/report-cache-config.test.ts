@@ -34,11 +34,20 @@ test("report cache defaults to fixtures and Azure mode fails closed", () => {
   assert.equal(config.mode, "azure-table");
   if (config.mode !== "azure-table") return;
   assert.equal(config.cacheTenantId, tenantId);
+  assert.equal(config.siteSource, "single-site");
   assert.equal(config.pilotSite.id, "contoso.sharepoint.com,site,web");
   assert.equal(config.pilotSiteNodeId, "project-aurora");
   assert.deepEqual([...config.reportableLabelIds], [
     "22222222-2222-4222-8222-222222222222",
   ]);
+  assert.equal(loadReportCacheConfig({
+    ...azureEnv(),
+    REPORT_SITE_SOURCE: "mapping-table",
+  }).mode, "azure-table");
+  assert.throws(
+    () => loadReportCacheConfig({ ...azureEnv(), REPORT_SITE_SOURCE: "unsafe" }),
+    /REPORT_SITE_SOURCE/,
+  );
 });
 
 test("report API mode requires an HTTPS endpoint and server-side key", () => {

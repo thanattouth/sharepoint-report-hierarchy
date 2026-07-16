@@ -232,6 +232,62 @@ Proceed only after the P4 exit gate and storage decision:
 - Add telemetry, alerts, recovery, secrets hardening, and operational runbooks.
 - Complete security review, retention/export/audit policy, and customer UAT before production completion.
 
+For this repository's hosted cross-tenant pilot:
+
+- Make timers enqueue only; a queue worker owns one Site scan and summary materialization.
+- Use deterministic scheduled run IDs keyed by trigger, UTC slot, and Site so replayed timer
+  invocations do not duplicate work. Keep manual run IDs unique.
+- Store active scan targets in the flat `ScannerSites` Table independently of hierarchy users.
+- Require an exact, case-sensitive library allowlist for the pilot. Fail closed if a configured
+  library is missing, and classify locked/unsupported/throttled/failed item outcomes as a partial run.
+- Deploy timers disabled. Prove the exact allowlisted Site through the queue-based pilot Run now
+  endpoint before enabling either schedule.
+- In a cross-tenant hosted deployment, keep host and scanner workload managed identities separate.
+  The multi-tenant app registration and managed identity must share the Azure tenant; provision
+  and admin-consent its enterprise application in the SharePoint tenant. Use managed-identity
+  federation and never copy the local P4 client secret into the Function App.
+- Configure Queue message encoding explicitly and retain poison messages after bounded retries.
+  Operational logs may include run/Site/request IDs and counts, but never file names, paths,
+  credentials, or delta tokens.
+- Include Azure Functions Extension Bundle v4 in `host.json` for non-HTTP bindings. After
+  publishing, verify host startup telemetry registers the Queue trigger; seeing function
+  metadata in the control plane does not prove the binding extension loaded successfully.
+- Treat tenant-wide Site discovery as a separate gate from tenant-wide file extraction.
+  `getAllSites` requires reviewed `Sites.Read.All`; first return aggregate Site/page counts only,
+  with a hard page ceiling and no cache writes. Do not automatically add discovered Sites to
+  `ScannerSites`, business mappings, or the active schedule.
+- Treat tenant-wide file counting as another separately approved gate. Enumerate only `id`, `file`,
+  `folder`, and `deleted` through an initial bounded `drive/root/delta` traversal; never call
+  sensitivity extraction merely to measure volume. Return aggregate file/page/failure counts only,
+  discard the partial count for any failed library, do not persist a delta cursor or file identity,
+  and verify afterward that Site targets, scan runs, cache rows, and schedules did not change.
+- Keep multi-Site extraction behind two simultaneous gates: explicit `registry` scope mode and an
+  active scan-enabled Site record with an exact non-empty drive-ID allowlist. Keep `single-site` as
+  the deployment default. Limit baseline waves to ten Sites, stop on missing/failed/throttled work,
+  require review for locked/unsupported partial work, and document a no-delete rollback before
+  activating a tenant manifest.
+- Build a tenant candidate manifest only after explicit cross-tenant field/destination approval.
+  Preserve an existing active pilot instead of overwriting it; save all other candidates disabled,
+  use drive IDs rather than library names as the persisted authorization boundary, return only
+  aggregate counts, and prove live idempotency. Fail closed on incomplete Site metadata, existing
+  active/conflicting candidate rows, missing drive allowlists, or candidate/page ceilings.
+- Expose exact candidate identities only through a separately approved, function-key protected
+  operator review. Hard-code the reviewed wave, require every target to remain disabled, resolve and
+  return only libraries matching persisted drive IDs, and log aggregate counts only. Never copy the
+  exact tenant review list into repository docs or treat review permission as activation permission.
+- Apply reviewed candidate exclusions with an exact-ID, preflight-first, idempotent operator change.
+  Retain the record and drive allowlist, clear its wave, keep it inactive/scan-disabled, and store an
+  exclusion state/reason/timestamp for audit. Never delete it, silently replace it from a later wave,
+  or let manifest regeneration overwrite the operator decision.
+- Execute an approved baseline serially through a dedicated fail-closed coordinator. Disable both
+  timers, open a separate short-lived baseline window, require `registry` mode, require the exact
+  approved Site count and drive-ID allowlists, and use deterministic run IDs per wave and Site.
+  Enqueue only the first missing Site; return the existing queued/running run on retries; enqueue the
+  next Site only after a clean `succeeded` result. Stop on failed, cancelled, failed-item, or
+  throttled outcomes, and pause for operator review on partial, locked, or unsupported outcomes.
+  Close the baseline window after completion or any stop/review condition. Do not automatically
+  retry a terminal baseline run or re-enable timers without a separately reviewed decision.
+
 ## Handoff
 
 Report:

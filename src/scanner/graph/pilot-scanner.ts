@@ -87,11 +87,16 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
     await this.dependencies.scanRunStore.save(run);
 
     try {
-      const drives = await this.listSiteDrives(request.target.id);
+      const drives = await this.listSiteDrives(request.target);
       for (const drive of drives) {
-        await this.scanDrive(request.target, drive, run);
+        await this.scanDrive(request.target, drive, run, request.trigger === "reconciliation");
       }
-      run.status = run.failedCount + run.throttledCount > 0 ? "partial" : "succeeded";
+      run.status = run.failedCount
+        + run.throttledCount
+        + run.lockedCount
+        + run.unsupportedCount > 0
+        ? "partial"
+        : "succeeded";
     } catch (error) {
       run.status = "failed";
       run.errorSummary = safeErrorSummary(error);
@@ -103,31 +108,58 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
   }
 
   private assertAllowedTarget(target: GovernedSharePointSite) {
-    if (!target.active || !target.scanEnabled || target.id !== this.dependencies.config.allowedSiteId) {
+    if (!target.active || !target.scanEnabled) {
+      throw new Error("The requested Site is not an active scan-enabled target");
+    }
+    if (this.dependencies.config.scopeMode === "single-site"
+      && target.id !== this.dependencies.config.allowedSiteId) {
       throw new Error("The requested Site is not the active P4 allowlisted target");
+    }
+    if (this.dependencies.config.scopeMode === "registry") {
+      const ids = target.scanLibraryIds;
+      if (!ids?.length || ids.some((id) => !id.trim()) || new Set(ids).size !== ids.length) {
+        throw new Error("The registry Site has no valid exact scan-library allowlist");
+      }
     }
   }
 
-  private async listSiteDrives(siteId: string) {
+  private async listSiteDrives(target: GovernedSharePointSite) {
     const drives: GraphDrive[] = [];
-    let next: string | undefined = `/sites/${encoded(siteId)}/drives?$select=id,name,webUrl,driveType`;
+    let next: string | undefined = `/sites/${encoded(target.id)}/drives?$select=id,name,webUrl,driveType`;
     while (next) {
       const page: GraphCollection<GraphDrive> = await this.dependencies.graph.request(next);
       drives.push(...page.value);
       next = page["@odata.nextLink"];
     }
-    return drives;
+    const registryIds = new Set(target.scanLibraryIds ?? []);
+    const registryMode = this.dependencies.config.scopeMode === "registry";
+    const allowed = registryMode
+      ? drives.filter((drive) => registryIds.has(drive.id))
+      : drives.filter((drive) => this.dependencies.config.allowedLibraryNames.has(drive.name));
+    const found = new Set(allowed.map((drive) => registryMode ? drive.id : drive.name));
+    const expected = registryMode ? registryIds : this.dependencies.config.allowedLibraryNames;
+    const missing = [...expected].filter((identity) => !found.has(identity));
+    if (missing.length > 0) {
+      throw new Error(`Configured document libraries were not found (${missing.length} missing)`);
+    }
+    return allowed;
   }
 
   private async scanDrive(
     site: GovernedSharePointSite,
     drive: GraphDrive,
     run: SensitivityScanRun,
+    reconciliation: boolean,
   ) {
-    const state = await this.dependencies.deltaStateStore.get(drive.id);
+    const state = reconciliation ? null : await this.dependencies.deltaStateStore.get(drive.id);
     let next: string | undefined = state?.cursor
       ?? `/drives/${encoded(drive.id)}/root/delta?$select=id,name,webUrl,lastModifiedDateTime,parentReference,file,folder,deleted`;
     let deltaLink: string | undefined;
+    const reconciliationInventory = reconciliation
+      ? (await this.dependencies.inventoryStore.listCurrentBySiteIds([site.id]))
+        .filter((item) => item.driveId === drive.id)
+      : [];
+    const seenFileIds = new Set<string>();
     const latestOutcomes = new Map<string, { kind: "deleted" } | {
       kind: "file";
       status: ScanStatus;
@@ -140,6 +172,7 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
       for (const item of page.value) latestInPage.set(item.id, item);
       const changed = [...latestInPage.values()].filter((item) => item.file || item.deleted);
       const files = changed.filter((item) => item.file && !item.deleted);
+      for (const item of files) seenFileIds.add(item.id);
       const deletedAt = this.now().toISOString();
       const deletions: DeletedInventoryIdentity[] = changed
         .filter((item) => item.deleted)
@@ -171,6 +204,22 @@ export class MicrosoftGraphPilotScanner implements SensitivityScanExecutor {
       deltaLink = page["@odata.deltaLink"] ?? deltaLink;
     }
     if (!deltaLink) throw new Error("Microsoft Graph delta response did not include a deltaLink");
+    if (reconciliation) {
+      const deletedAt = this.now().toISOString();
+      const absent: DeletedInventoryIdentity[] = reconciliationInventory
+        .filter((item) => !seenFileIds.has(item.itemId))
+        .map((item) => ({
+          tenantId: item.tenantId,
+          siteId: item.siteId,
+          driveId: item.driveId,
+          itemId: item.itemId,
+          deletedAt,
+        }));
+      if (absent.length > 0) {
+        await this.dependencies.inventoryStore.applyChanges({ upserts: [], deletions: absent });
+        for (const item of absent) latestOutcomes.set(item.itemId, { kind: "deleted" });
+      }
+    }
     await this.dependencies.deltaStateStore.save({
       driveId: drive.id,
       cursor: deltaLink,

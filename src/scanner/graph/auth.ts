@@ -1,6 +1,8 @@
 import {
+  ClientAssertionCredential,
   ClientSecretCredential,
   DefaultAzureCredential,
+  ManagedIdentityCredential,
   type TokenCredential,
 } from "@azure/identity";
 import type { GraphAccessTokenProvider } from "./graph-client";
@@ -19,9 +21,24 @@ export class AzureIdentityGraphTokenProvider implements GraphAccessTokenProvider
 }
 
 export function createAzureCredential(config: GraphPilotAuthConfig): TokenCredential {
-  return config.mode === "client-secret"
-    ? new ClientSecretCredential(config.tenantId, config.clientId, config.clientSecret)
-    : new DefaultAzureCredential({
+  if (config.mode === "client-secret") {
+    return new ClientSecretCredential(config.tenantId, config.clientId, config.clientSecret);
+  }
+  if (config.mode === "federated-identity") {
+    const managedIdentity = new ManagedIdentityCredential(config.managedIdentityClientId);
+    return new ClientAssertionCredential(
+      config.tenantId,
+      config.clientId,
+      async () => {
+        const assertion = await managedIdentity.getToken("api://AzureADTokenExchange/.default");
+        if (!assertion?.token) {
+          throw new Error("Managed identity did not return a workload identity assertion");
+        }
+        return assertion.token;
+      },
+    );
+  }
+  return new DefaultAzureCredential({
         tenantId: config.tenantId,
         managedIdentityClientId: config.managedIdentityClientId,
       });

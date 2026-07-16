@@ -46,6 +46,10 @@ export class FixtureInventoryStore implements InventoryStore {
 }
 
 export class FixtureScanRunStore implements ScanRunStore {
+  async get(runId: string) {
+    return structuredClone(scanRuns.find((run) => run.id === runId) ?? null);
+  }
+
   async listRecent() {
     return structuredClone(scanRuns);
   }

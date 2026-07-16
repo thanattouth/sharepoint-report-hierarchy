@@ -1,4 +1,8 @@
 import { resolveHierarchyScope } from "../domain/hierarchy";
+import type {
+  GovernedSharePointSite,
+  GovernanceHierarchySiteMapping,
+} from "../domain/types";
 import { REPORTABLE_LABEL_IDS } from "../fixtures/data";
 import {
   FixtureHierarchyStore,
@@ -47,15 +51,36 @@ export async function loadReportSource(
     throw new Error("Azure API mode must be loaded through the server-side API client");
   }
 
-  if (!nodes.some((node) => node.id === cacheConfig.pilotSiteNodeId && node.active)) {
-    throw new Error("REPORT_PILOT_SITE_NODE_ID must reference an active hierarchy node");
+  const [{ createAzureTableCredential }, { createAzureTableStores }] = await Promise.all([
+    import("../stores/azure-table/auth"),
+    import("../stores/azure-table/stores"),
+  ]);
+  const stores = createAzureTableStores({
+    config: cacheConfig.table,
+    credential: createAzureTableCredential(cacheConfig.table.auth),
+    tenantId: cacheConfig.cacheTenantId,
+  });
+  let sites: GovernedSharePointSite[];
+  let siteMappings: GovernanceHierarchySiteMapping[];
+  if (cacheConfig.siteSource === "mapping-table") {
+    siteMappings = await stores.siteMappingStore.listActive();
+    const siteIds = [...new Set(siteMappings.map((mapping) => mapping.siteId))];
+    const resolvedSites = await Promise.all(siteIds.map((siteId) => stores.siteStore.get(siteId)));
+    if (resolvedSites.some((site) => !site || !site.active)) {
+      throw new Error("An active hierarchy mapping references a missing or inactive Site");
+    }
+    sites = resolvedSites.filter((site) => site !== null);
+  } else {
+    if (!nodes.some((node) => node.id === cacheConfig.pilotSiteNodeId && node.active)) {
+      throw new Error("REPORT_PILOT_SITE_NODE_ID must reference an active hierarchy node");
+    }
+    sites = [cacheConfig.pilotSite];
+    siteMappings = [{
+      nodeId: cacheConfig.pilotSiteNodeId,
+      siteId: cacheConfig.pilotSite.id,
+      active: true,
+    }];
   }
-  const sites = [cacheConfig.pilotSite];
-  const siteMappings = [{
-    nodeId: cacheConfig.pilotSiteNodeId,
-    siteId: cacheConfig.pilotSite.id,
-    active: true,
-  }];
   const scope = resolveHierarchyScope(
     request.userUpn,
     nodes,
@@ -84,15 +109,6 @@ export async function loadReportSource(
   }
   if (scope.allowedSiteIds.length === 0 || request.scenario === "no-scan") return base;
 
-  const [{ createAzureTableCredential }, { createAzureTableStores }] = await Promise.all([
-    import("../stores/azure-table/auth"),
-    import("../stores/azure-table/stores"),
-  ]);
-  const stores = createAzureTableStores({
-    config: cacheConfig.table,
-    credential: createAzureTableCredential(cacheConfig.table.auth),
-    tenantId: cacheConfig.cacheTenantId,
-  });
   const selectedSiteId = request.filters.siteId;
   const inventoryCoverage = selectedSiteId && scope.allowedSiteIds.length > 1
     ? "selected-site"

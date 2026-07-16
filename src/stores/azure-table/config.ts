@@ -5,6 +5,8 @@ export type AzureTableStoreConfig = {
   scanRunTableName: string;
   deltaStateTableName: string;
   siteSummaryTableName: string;
+  siteTableName: string;
+  siteMappingTableName: string;
   auth:
     | {
         mode: "azure-cli";
@@ -84,6 +86,14 @@ export function loadAzureTableStoreConfig(
     siteSummaryTableName: tableName(
       env.AZURE_TABLE_SITE_SUMMARY_NAME?.trim() || "SiteLabelSummary",
       "AZURE_TABLE_SITE_SUMMARY_NAME",
+    ),
+    siteTableName: tableName(
+      env.AZURE_TABLE_SITE_NAME?.trim() || "ScannerSites",
+      "AZURE_TABLE_SITE_NAME",
+    ),
+    siteMappingTableName: tableName(
+      env.AZURE_TABLE_SITE_MAPPING_NAME?.trim() || "HierarchySiteMappings",
+      "AZURE_TABLE_SITE_MAPPING_NAME",
     ),
     auth: authMode === "azure-cli"
       ? { mode: authMode, tenantId }

@@ -69,6 +69,7 @@ test("Graph pilot configuration fails closed and supports managed identity by de
   const config = loadGraphPilotConfig({
     SCANNER_TENANT_ID: TENANT_ID,
     SCANNER_ALLOWED_SITE_ID: SITE_ID,
+    SCANNER_ALLOWED_LIBRARY_NAMES: "Secret,Confidential",
     SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
     SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
       [CONFIDENTIAL_LABEL_ID]: "Confidential",
@@ -76,16 +77,30 @@ test("Graph pilot configuration fails closed and supports managed identity by de
     }),
   });
   assert.equal(config.auth.mode, "default");
+  assert.equal(config.scopeMode, "single-site");
   assert.equal(config.auth.tenantId, TENANT_ID);
   assert.equal(config.maxConcurrency, 4);
   assert.deepEqual([...config.reportableLabelIds], [CONFIDENTIAL_LABEL_ID, SECRET_LABEL_ID]);
   assert.equal(config.reportableLabelNames.get(CONFIDENTIAL_LABEL_ID), "Confidential");
+  assert.deepEqual([...config.allowedLibraryNames], ["Secret", "Confidential"]);
+
+  const federated = loadGraphPilotConfig({
+    SCANNER_AUTH_MODE: "federated-identity",
+    SCANNER_TENANT_ID: TENANT_ID,
+    SCANNER_ALLOWED_SITE_ID: SITE_ID,
+    SCANNER_ALLOWED_LIBRARY_NAMES: "Secret,Confidential",
+    SCANNER_REPORTABLE_LABEL_IDS: SECRET_LABEL_ID,
+    SCANNER_CLIENT_ID: CLIENT_ID,
+    SCANNER_MANAGED_IDENTITY_CLIENT_ID: CONFIDENTIAL_LABEL_ID,
+  });
+  assert.equal(federated.auth.mode, "federated-identity");
 
   assert.throws(
     () => loadGraphPilotConfig({
       SCANNER_AUTH_MODE: "client-secret",
       SCANNER_TENANT_ID: TENANT_ID,
       SCANNER_ALLOWED_SITE_ID: SITE_ID,
+      SCANNER_ALLOWED_LIBRARY_NAMES: "Secret,Confidential",
       SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
       SCANNER_CLIENT_ID: CLIENT_ID,
     }),
@@ -95,6 +110,7 @@ test("Graph pilot configuration fails closed and supports managed identity by de
     () => loadGraphPilotConfig({
       SCANNER_TENANT_ID: TENANT_ID,
       SCANNER_ALLOWED_SITE_ID: SITE_ID,
+      SCANNER_ALLOWED_LIBRARY_NAMES: "Secret,Confidential",
       SCANNER_REPORTABLE_LABEL_IDS: SECRET_LABEL_ID,
       SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
         [CONFIDENTIAL_LABEL_ID]: "Confidential",
@@ -198,7 +214,8 @@ test("bounded pilot scans only named libraries and enforces the per-library file
 
 class MemoryInventoryStore implements InventoryStore {
   changes: Array<{ upserts: SensitivityInventoryItem[]; deletions: DeletedInventoryIdentity[] }> = [];
-  async listCurrentBySiteIds() { return []; }
+  current: SensitivityInventoryItem[] = [];
+  async listCurrentBySiteIds() { return structuredClone(this.current); }
   async applyChanges(changes: { upserts: SensitivityInventoryItem[]; deletions: DeletedInventoryIdentity[] }) {
     this.changes.push(structuredClone(changes));
   }
@@ -206,6 +223,7 @@ class MemoryInventoryStore implements InventoryStore {
 
 class MemoryRunStore implements ScanRunStore {
   runs: SensitivityScanRun[] = [];
+  async get(runId: string) { return structuredClone(this.runs.findLast((run) => run.id === runId) ?? null); }
   async listRecent() { return structuredClone(this.runs); }
   async save(run: SensitivityScanRun) { this.runs.push(structuredClone(run)); }
 }
@@ -231,6 +249,7 @@ function scannerConfig() {
   return loadGraphPilotConfig({
     SCANNER_TENANT_ID: TENANT_ID,
     SCANNER_ALLOWED_SITE_ID: SITE_ID,
+    SCANNER_ALLOWED_LIBRARY_NAMES: "Documents",
     SCANNER_REPORTABLE_LABEL_IDS: `${CONFIDENTIAL_LABEL_ID},${SECRET_LABEL_ID}`,
     SCANNER_LABEL_DISPLAY_NAMES_JSON: JSON.stringify({
       [CONFIDENTIAL_LABEL_ID]: "Confidential",
@@ -281,7 +300,7 @@ test("one-site Graph pilot persists outcomes, deletion markers and delta state",
 
   const result = await scanner.execute({ runId: "P4-001", trigger: "manual", target: testSite });
 
-  assert.equal(result.status, "succeeded");
+  assert.equal(result.status, "partial");
   assert.equal(result.changedCount, 3);
   assert.equal(result.scannedCount, 2);
   assert.equal(result.sensitiveCount, 1);
@@ -290,7 +309,7 @@ test("one-site Graph pilot persists outcomes, deletion markers and delta state",
   assert.equal(inventoryStore.changes[0].upserts[1].scanStatus, "locked");
   assert.equal(inventoryStore.changes[0].deletions[0].itemId, "item-deleted");
   assert.equal(deltaStateStore.states.get("drive-1")?.cursor.includes("token=next"), true);
-  assert.equal(scanRunStore.runs.at(-1)?.status, "succeeded");
+  assert.equal(scanRunStore.runs.at(-1)?.status, "partial");
   assert.equal(requests.filter((path) => path.includes("extractSensitivityLabels")).length, 2);
 });
 
@@ -307,6 +326,83 @@ test("one-site Graph pilot rejects a non-allowlisted Site before network access"
   await assert.rejects(
     () => scanner.execute({ runId: "P4-002", trigger: "manual", target: { ...testSite, id: "other-site" } }),
     /not the active P4 allowlisted target/,
+  );
+  assert.equal(requested, false);
+});
+
+test("registry scope scans only exact drive IDs stored on the active Site target", async () => {
+  const inventoryStore = new MemoryInventoryStore();
+  const requests: string[] = [];
+  const graph = {
+    async request(path: string) {
+      requests.push(path);
+      if (path.includes("/drives?$select=")) {
+        return {
+          value: [
+            { id: "drive-approved", name: "Renamed approved library" },
+            { id: "drive-other", name: "Secret" },
+          ],
+        };
+      }
+      if (path.includes("drive-approved/root/delta")) {
+        return {
+          value: [{ id: "item-1", name: "approved.docx", file: {} }],
+          "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive-approved/root/delta?token=next",
+        };
+      }
+      if (path.includes("extractSensitivityLabels")) return { labels: [] };
+      throw new Error(`Unexpected Graph request: ${path}`);
+    },
+  } as GraphClient;
+  const config = loadGraphPilotConfig({
+    SCANNER_SCOPE_MODE: "registry",
+    SCANNER_TENANT_ID: TENANT_ID,
+    SCANNER_ALLOWED_SITE_ID: SITE_ID,
+    SCANNER_ALLOWED_LIBRARY_NAMES: "legacy-pilot-only",
+    SCANNER_REPORTABLE_LABEL_IDS: SECRET_LABEL_ID,
+  });
+  const scanner = new MicrosoftGraphPilotScanner({
+    graph,
+    inventoryStore,
+    scanRunStore: new MemoryRunStore(),
+    deltaStateStore: new MemoryDeltaStore(),
+    config,
+  });
+  const result = await scanner.execute({
+    runId: "registry-001",
+    trigger: "manual",
+    target: {
+      ...testSite,
+      id: "contoso.sharepoint.com,another-site,web",
+      scanLibraryIds: ["drive-approved"],
+    },
+  });
+
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.scannedCount, 1);
+  assert.equal(requests.some((path) => path.includes("drive-other/root/delta")), false);
+});
+
+test("registry scope rejects a target without an exact drive allowlist before network access", async () => {
+  let requested = false;
+  const config = loadGraphPilotConfig({
+    SCANNER_SCOPE_MODE: "registry",
+    SCANNER_TENANT_ID: TENANT_ID,
+    SCANNER_ALLOWED_SITE_ID: SITE_ID,
+    SCANNER_ALLOWED_LIBRARY_NAMES: "legacy-pilot-only",
+    SCANNER_REPORTABLE_LABEL_IDS: SECRET_LABEL_ID,
+  });
+  const scanner = new MicrosoftGraphPilotScanner({
+    graph: { async request() { requested = true; return {}; } } as unknown as GraphClient,
+    inventoryStore: new MemoryInventoryStore(),
+    scanRunStore: new MemoryRunStore(),
+    deltaStateStore: new MemoryDeltaStore(),
+    config,
+  });
+
+  await assert.rejects(
+    () => scanner.execute({ runId: "registry-002", trigger: "manual", target: testSite }),
+    /no valid exact scan-library allowlist/,
   );
   assert.equal(requested, false);
 });
@@ -338,4 +434,61 @@ test("delta cursor does not advance when inventory persistence fails", async () 
   const result = await scanner.execute({ runId: "P4-003", trigger: "manual", target: testSite });
   assert.equal(result.status, "failed");
   assert.equal(deltaStateStore.states.has("drive-1"), false);
+});
+
+test("scheduled scanner refuses unconfigured libraries and reconciliation tombstones missing items", async () => {
+  const inventoryStore = new MemoryInventoryStore();
+  inventoryStore.current = [{
+    tenantId: TENANT_ID,
+    siteId: SITE_ID,
+    driveId: "drive-1",
+    itemId: "old-item",
+    siteName: testSite.name,
+    libraryName: "Documents",
+    fileName: "old.docx",
+    filePath: "/old.docx",
+    sensitivityLabels: [],
+    scanStatus: "no-label",
+    scannedAt: "2026-07-13T00:00:00.000Z",
+  }];
+  const deltaStateStore = new MemoryDeltaStore();
+  deltaStateStore.states.set("drive-1", {
+    driveId: "drive-1",
+    cursor: "https://graph.microsoft.com/v1.0/drives/drive-1/root/delta?token=incremental",
+    updatedAt: "2026-07-13T00:00:00.000Z",
+  });
+  const requests: string[] = [];
+  const graph = {
+    async request(path: string) {
+      requests.push(path);
+      if (path.includes("/drives?$select=")) {
+        return { value: [{ id: "drive-1", name: "Documents" }, { id: "drive-other", name: "Other" }] };
+      }
+      if (path.includes("drive-1/root/delta?$select")) {
+        return {
+          value: [{ id: "new-item", name: "new.docx", file: {} }],
+          "@odata.deltaLink": "https://graph.microsoft.com/v1.0/drives/drive-1/root/delta?token=reconciled",
+        };
+      }
+      if (path.includes("new-item/extractSensitivityLabels")) return { labels: [] };
+      throw new Error(`Unexpected Graph request: ${path}`);
+    },
+  } as GraphClient;
+  const scanner = new MicrosoftGraphPilotScanner({
+    graph,
+    inventoryStore,
+    scanRunStore: new MemoryRunStore(),
+    deltaStateStore,
+    config: scannerConfig(),
+    now: () => new Date("2026-07-16T19:00:00.000Z"),
+  });
+
+  const result = await scanner.execute({ runId: "P5-reconcile", trigger: "reconciliation", target: testSite });
+
+  assert.equal(result.status, "succeeded");
+  assert.ok(requests.some((path) => path.includes("root/delta?$select")));
+  assert.ok(!requests.some((path) => path.includes("token=incremental")));
+  assert.ok(!requests.some((path) => path.includes("drive-other/root/delta")));
+  assert.equal(inventoryStore.changes.at(-1)?.deletions[0]?.itemId, "old-item");
+  assert.match(deltaStateStore.states.get("drive-1")?.cursor ?? "", /token=reconciled/);
 });
