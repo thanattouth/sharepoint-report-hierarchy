@@ -272,3 +272,7 @@ change is explicitly approved.
 - Keep unmapped, inactive, excluded, and skipped Sites hidden from all report users. Preserve them
   for scanner/audit operations as appropriate, then publish them only after an operator adds the
   approved canonical business placement.
+- Current POC limitation (2026-07-20): the eight visible pilot Sites use the existing
+  `project-aurora` placement so DGCS and Wave 1 remain demonstrable. This is test placement, not a
+  claim about the customer's real organization. Before production/UAT, load the approved EVP
+  forest, assignments, and per-Site canonical placements instead of copying this pilot mapping.
