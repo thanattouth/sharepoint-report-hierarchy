@@ -7,6 +7,8 @@ import { loadAzureTableStoreConfig } from "../src/stores/azure-table/config";
 import {
   fromDeltaStateEntity,
   fromInventoryEntity,
+  fromHierarchyConfigurationAuditEntity,
+  fromHierarchyNodeEntity,
   fromScanRunEntity,
   fromSiteEntity,
   fromSiteMappingEntity,
@@ -15,6 +17,8 @@ import {
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
+  toHierarchyConfigurationAuditEntity,
+  toHierarchyNodeEntity,
   toScanRunEntity,
   toSiteEntity,
   toSiteMappingEntity,
@@ -70,6 +74,7 @@ test("Azure Table configuration fails closed and supplies schema table names", (
   assert.equal(config.hierarchyNodeTableName, "HierarchyNodes");
   assert.equal(config.scopeAssignmentTableName, "ScopeAssignments");
   assert.equal(config.siteMappingAuditTableName, "HierarchySiteMappingAudit");
+  assert.equal(config.hierarchyConfigurationAuditTableName, "HierarchySiteMappingAudit");
   assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
   assert.throws(
     () => loadAzureTableStoreConfig({
@@ -80,6 +85,24 @@ test("Azure Table configuration fails closed and supplies schema table names", (
     }),
     /requires managed-identity/,
   );
+});
+
+test("legacy hierarchy rows normalize to version 1 and configuration audit uses an isolated partition", () => {
+  const node = { id: "evp-a", type: "EVP" as const, name: "EVP A", active: true };
+  assert.equal(fromHierarchyNodeEntity(toHierarchyNodeEntity(tenantId, node)).version, 1);
+  const event = {
+    id: "event-1",
+    entityType: "HierarchyNode" as const,
+    entityId: node.id,
+    action: "created" as const,
+    actor: "admin@contoso.com",
+    occurredAt: "2026-07-20T08:00:00.000Z",
+    version: 1,
+    summary: "EVP · EVP A",
+  };
+  const entity = toHierarchyConfigurationAuditEntity(tenantId, event);
+  assert.match(entity.partitionKey, /configuration\|HierarchyNode\|evp-a$/);
+  assert.deepEqual(fromHierarchyConfigurationAuditEntity(entity), event);
 });
 
 test("Azure Table hierarchy-to-Site mapping codec preserves the explicit placement", () => {

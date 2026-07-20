@@ -4,6 +4,7 @@ import type {
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  HierarchyConfigurationAuditEvent,
   SiteMappingAuditEvent,
   SensitivityInventoryItem,
   SensitivityScanRun,
@@ -61,6 +62,11 @@ type ScopeAssignmentEntity = Omit<GovernanceHierarchyAssignment, "id"> & {
 };
 
 type SiteMappingAuditEntity = SiteMappingAuditEvent & {
+  partitionKey: string;
+  rowKey: string;
+};
+
+type HierarchyConfigurationAuditEntity = HierarchyConfigurationAuditEvent & {
   partitionKey: string;
   rowKey: string;
 };
@@ -259,7 +265,8 @@ export function toHierarchyNodeEntity(
 export function fromHierarchyNodeEntity(
   entity: HierarchyNodeEntity & AzureTableServiceMetadata,
 ): GovernanceHierarchyNode {
-  return entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
+  const node = entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
+  return { ...node, version: node.version ?? 1 };
 }
 
 export function toScopeAssignmentEntity(
@@ -279,6 +286,24 @@ export function toScopeAssignmentEntity(
 export function fromScopeAssignmentEntity(
   entity: ScopeAssignmentEntity & AzureTableServiceMetadata,
 ): GovernanceHierarchyAssignment {
+  const assignment = entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
+  return { ...assignment, version: assignment.version ?? 1 };
+}
+
+export function toHierarchyConfigurationAuditEntity(
+  tenantId: string,
+  event: HierarchyConfigurationAuditEvent,
+): HierarchyConfigurationAuditEntity {
+  return withoutUndefined({
+    ...event,
+    partitionKey: `${encodedKey(tenantId)}|configuration|${event.entityType}|${encodedKey(event.entityId)}`,
+    rowKey: `${encodedKey(event.occurredAt)}|${encodedKey(event.id)}`,
+  });
+}
+
+export function fromHierarchyConfigurationAuditEntity(
+  entity: HierarchyConfigurationAuditEntity & AzureTableServiceMetadata,
+): HierarchyConfigurationAuditEvent {
   return entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
 }
 
@@ -312,6 +337,7 @@ export type {
   DeltaStateEntity,
   InventoryEntity,
   HierarchyNodeEntity,
+  HierarchyConfigurationAuditEntity,
   ScanRunEntity,
   ScopeAssignmentEntity,
   SiteEntity,

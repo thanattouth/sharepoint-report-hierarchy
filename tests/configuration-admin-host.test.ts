@@ -26,5 +26,10 @@ test("Configuration Admin routes avoid Azure's reserved admin segment", () => {
   assert.match(host, /route: "configuration\/site-mappings"/);
   assert.match(host, /route: "configuration\/site-mappings\/preview"/);
   assert.match(host, /route: "configuration\/site-mappings\/apply"/);
+  assert.match(host, /route: "configuration\/business-scope"/);
+  assert.match(host, /route: "configuration\/business-nodes\/preview"/);
+  assert.match(host, /route: "configuration\/business-nodes\/apply"/);
+  assert.match(host, /route: "configuration\/scope-assignments\/preview"/);
+  assert.match(host, /route: "configuration\/scope-assignments\/apply"/);
   assert.doesNotMatch(host, /route: "admin\//);
 });

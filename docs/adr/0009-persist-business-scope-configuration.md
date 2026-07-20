@@ -21,6 +21,14 @@ expected version and the Azure entity ETag so concurrent administrators cannot s
 one another. Emit a separate audit event for every effective assignment, move, reactivation, or
 deactivation.
 
+Hierarchy nodes and scope assignments also carry a monotonic version, actor, and timestamp. Admin
+writes compare the expected version and Azure entity ETag before replacing the record. Existing
+rows that predate versioning are read as version 1; their first effective admin change persists
+version 2. Node and assignment events use a dedicated `configuration` partition namespace inside
+the existing `HierarchySiteMappingAudit` append-only Table. This preserves the exact four-table
+writer RBAC boundary while keeping Site-mapping and business-configuration codecs and stores
+separate in code.
+
 Assignments support Entra `User` and `Group` principals. Prefer immutable object IDs for
 production matching; retain UPN and display name only for controlled pilot fallback, search, and
 display. A group assignment contributes scope when the signed-in user's resolved group object IDs
@@ -42,3 +50,7 @@ Keep the legacy table unchanged during the transition. Roll back by restoring
 `REPORT_HIERARCHY_SOURCE=fixture` and `AZURE_TABLE_SITE_MAPPING_NAME=HierarchySiteMappings`, then
 republish the last known-good Report API package. Do not delete either table until customer UAT,
 retention, and rollback-window decisions are complete.
+
+The version fields and configuration-audit partitions are backward compatible. Rolling back the
+Configuration Admin API leaves them untouched; the prior reader ignores additional entity fields.
+Never decrement versions or delete configuration audit rows during rollback.

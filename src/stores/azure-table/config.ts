@@ -10,6 +10,7 @@ export type AzureTableStoreConfig = {
   hierarchyNodeTableName: string;
   scopeAssignmentTableName: string;
   siteMappingAuditTableName: string;
+  hierarchyConfigurationAuditTableName: string;
   auth:
     | {
         mode: "azure-cli";
@@ -109,6 +110,12 @@ export function loadAzureTableStoreConfig(
     siteMappingAuditTableName: tableName(
       env.AZURE_TABLE_SITE_MAPPING_AUDIT_NAME?.trim() || "HierarchySiteMappingAudit",
       "AZURE_TABLE_SITE_MAPPING_AUDIT_NAME",
+    ),
+    hierarchyConfigurationAuditTableName: tableName(
+      env.AZURE_TABLE_HIERARCHY_CONFIGURATION_AUDIT_NAME?.trim()
+        || env.AZURE_TABLE_SITE_MAPPING_AUDIT_NAME?.trim()
+        || "HierarchySiteMappingAudit",
+      "AZURE_TABLE_HIERARCHY_CONFIGURATION_AUDIT_NAME",
     ),
     auth: authMode === "azure-cli"
       ? { mode: authMode, tenantId }

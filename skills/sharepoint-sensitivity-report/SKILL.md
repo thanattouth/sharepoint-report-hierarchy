@@ -123,6 +123,13 @@ Enforce all of these on every change:
   reactivate excluded scanner candidates, or trigger broader scanning merely to prepare the Admin
   Inbox. Verify the Configuration Admin API returns the persisted inactive-row version before
   testing remap Apply.
+- Manage business nodes and principal assignments through the protected Business Scope Admin, not
+  source fixtures. Require impact preview, expected version plus Azure ETag, verified Entra actor,
+  and an append-only audit event for every effective change. Read legacy rows without a version as
+  version 1 and persist the next mutation as version 2; never reset or decrement versions.
+- Enforce the fixed parent chain on every node mutation. Block node deactivation while active child
+  nodes, direct assignments, or direct Site placements remain. Prefer immutable Entra object IDs
+  for Users and require them for Groups; keep UPN-only matching as an explicit pilot fallback.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through

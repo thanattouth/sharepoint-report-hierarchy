@@ -117,11 +117,65 @@ if (mapped?.siteId && mapped.nodeId && Number.isInteger(mapped.version)) {
   }
   previewUnchanged = 1;
 }
+const businessScopeResponse = await fetch(
+  `https://${hostname}/api/configuration/business-scope`,
+  { headers: requestHeaders, redirect: "manual" },
+);
+if (businessScopeResponse.status !== 200) {
+  throw new Error(`Business scope returned HTTP ${businessScopeResponse.status}`);
+}
+const businessScope = await businessScopeResponse.json() as {
+  nodes?: Array<Record<string, unknown>>;
+  assignments?: Array<Record<string, unknown>>;
+  auditEvents?: unknown[];
+  counts?: Record<string, unknown>;
+};
+if (!Array.isArray(businessScope.nodes)
+  || businessScope.nodes.filter((node) => node.active === true).length !== 15
+  || !businessScope.nodes.every((node) => typeof node.id === "string"
+    && typeof node.name === "string"
+    && typeof node.type === "string"
+    && typeof node.active === "boolean"
+    && Number.isInteger(node.version))
+  || !Array.isArray(businessScope.assignments)
+  || !businessScope.assignments.every((assignment) => typeof assignment.id === "string"
+    && typeof assignment.nodeId === "string"
+    && Number.isInteger(assignment.version))
+  || !Array.isArray(businessScope.auditEvents)) {
+  throw new Error("Business scope response is invalid");
+}
+const previewNode = businessScope.nodes.find((node) => node.active === true);
+if (!previewNode) throw new Error("Business scope has no active node to preview");
+const nodePreviewResponse = await fetch(`https://${hostname}/api/configuration/business-nodes/preview`, {
+  method: "POST",
+  headers: requestHeaders,
+  redirect: "manual",
+  body: JSON.stringify({
+    change: {
+      id: previewNode.id,
+      expectedVersion: previewNode.version,
+      type: previewNode.type,
+      name: previewNode.name,
+      parentId: previewNode.parentId,
+      active: previewNode.active,
+    },
+  }),
+});
+if (nodePreviewResponse.status !== 200) {
+  throw new Error(`Business node preview returned HTTP ${nodePreviewResponse.status}`);
+}
+const nodePreview = await nodePreviewResponse.json() as Record<string, unknown>;
+if (nodePreview.entityType !== "HierarchyNode" || nodePreview.nextVersion !== Number(previewNode.version) + 1) {
+  throw new Error("Business node preview response is invalid");
+}
 process.stdout.write(`${JSON.stringify({
   status: "verified-read-preview-only",
   inboxSiteCount: rows.length,
   mappedSiteCount,
   activeNodeCount: firstPage.nodes.length,
+  assignmentCount: businessScope.assignments.length,
+  configurationAuditEventCount: businessScope.auditEvents.length,
+  businessNodePreview: true,
   previewUnchanged,
   expectedMappedSiteCount,
 })}\n`);

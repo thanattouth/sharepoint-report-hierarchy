@@ -5,6 +5,7 @@ import type {
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  HierarchyConfigurationAuditEvent,
   SiteMappingAuditEvent,
   SensitivityInventoryItem,
   SensitivityScanRun,
@@ -59,15 +60,22 @@ export interface SiteMappingStore {
 
 export interface HierarchyNodeStore {
   listAll(): Promise<GovernanceHierarchyNode[]>;
-  save(node: GovernanceHierarchyNode): Promise<void>;
+  get(nodeId: string): Promise<GovernanceHierarchyNode | null>;
+  save(node: GovernanceHierarchyNode, expectedVersion?: number): Promise<void>;
 }
 
 export interface ScopeAssignmentStore {
   listAll(): Promise<GovernanceHierarchyAssignment[]>;
-  save(assignment: GovernanceHierarchyAssignment): Promise<void>;
+  get(assignmentId: string): Promise<GovernanceHierarchyAssignment | null>;
+  save(assignment: GovernanceHierarchyAssignment, expectedVersion?: number): Promise<void>;
 }
 
 export interface SiteMappingAuditStore {
   listRecent(siteId?: string): Promise<SiteMappingAuditEvent[]>;
   save(event: SiteMappingAuditEvent): Promise<void>;
+}
+
+export interface HierarchyConfigurationAuditStore {
+  listRecent(entityType?: HierarchyConfigurationAuditEvent["entityType"], entityId?: string): Promise<HierarchyConfigurationAuditEvent[]>;
+  save(event: HierarchyConfigurationAuditEvent): Promise<void>;
 }

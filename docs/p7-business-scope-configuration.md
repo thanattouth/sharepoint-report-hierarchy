@@ -74,8 +74,39 @@ records in the inbox. If Flex Consumption
 indexes the previous package after One Deploy, wait for the active deployment to complete and
 restart only the Configuration Admin Function; confirm the route metadata before retrying.
 
+## Business Scope Admin
+
+`/admin/business-scope` is the customer-managed entry point before Site placement and report
+visibility are connected. It has three linked configuration surfaces:
+
+1. **Structure** creates or edits the fixed `EVP -> Department -> Group -> Project` forest.
+2. **Principal assignments** binds an Entra User or Group to a node, business role, and explicit
+   `includeDescendants` policy.
+3. **Site mappings** opens the existing flat Site Mapping Inbox.
+
+The page is protected by the same Entra `ReportAdmin` session and private server bridge as the
+Site Mapping Inbox. User assignments prefer immutable Entra object IDs and permit UPN only as the
+documented pilot fallback; Group assignments always require an object ID. The UI does not request
+Graph directory-search permission and therefore cannot broaden directory access merely to provide
+a picker.
+
+Every node and assignment change must pass an impact preview before Apply. Apply checks the
+expected record version and Azure ETag, derives the actor from the verified Entra UPN, increments
+the version, and appends an audit event. Deactivating a node is rejected while it has an active
+child, direct assignment, or direct Site placement. Moving a node must still validate the complete
+parent chain and cannot cross an invalid level.
+
+Existing hierarchy and assignment rows without a version are interpreted as version 1. Their first
+admin mutation writes version 2; no bulk data migration is required. Configuration events share the
+existing audit Table under isolated partition keys beginning with
+`<tenant>|configuration|<entityType>|<entityId>`, so the deployed writer needs no broader RBAC.
+
 ## Rollback
 
 Restore the Report API settings to fixture hierarchy and `HierarchySiteMappings`, redeploy the
 last package, and verify the multi-Site report check. Do not delete new or legacy configuration
 tables during rollback.
+
+To roll back only Business Scope Admin, deploy the previous Configuration Admin and Sites versions.
+Do not remove version fields or audit partitions: they are additive, ignored by the prior readers,
+and required for forward recovery.

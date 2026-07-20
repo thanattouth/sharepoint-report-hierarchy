@@ -6,6 +6,9 @@ export type GovernanceHierarchyNode = {
   type: HierarchyNodeType;
   name: string;
   active: boolean;
+  version?: number;
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 export type GovernedSharePointSite = {
@@ -52,6 +55,9 @@ export type GovernanceHierarchyAssignment = {
   businessRole: BusinessRole;
   includeDescendants: boolean;
   active: boolean;
+  version?: number;
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 export type GovernancePrincipalContext = {
@@ -69,6 +75,19 @@ export type SiteMappingAuditEvent = {
   actor: string;
   occurredAt: string;
   version: number;
+};
+
+export type HierarchyConfigurationEntityType = "HierarchyNode" | "ScopeAssignment";
+
+export type HierarchyConfigurationAuditEvent = {
+  id: string;
+  entityType: HierarchyConfigurationEntityType;
+  entityId: string;
+  action: "created" | "updated" | "moved" | "reactivated" | "deactivated";
+  actor: string;
+  occurredAt: string;
+  version: number;
+  summary: string;
 };
 
 export type AppCapability = "ReportAdmin" | "ReportViewer";

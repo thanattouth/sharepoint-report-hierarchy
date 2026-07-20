@@ -50,3 +50,59 @@ export function parseMappingChanges(value: unknown) {
     return { siteId: siteId.trim(), expectedVersion };
   });
 }
+
+export function parseBusinessNodeChange(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("Hierarchy node change is invalid");
+  const change = value as Record<string, unknown>;
+  return {
+    id: optionalString(change.id),
+    expectedVersion: integer(change.expectedVersion, "expectedVersion"),
+    type: requiredString(change.type, "type") as "EVP" | "Department" | "Group" | "Project",
+    name: requiredString(change.name, "name"),
+    parentId: optionalString(change.parentId),
+    active: boolean(change.active, "active"),
+  };
+}
+
+export function parseScopeAssignmentChange(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("Scope assignment change is invalid");
+  const change = value as Record<string, unknown>;
+  return {
+    id: optionalString(change.id),
+    expectedVersion: integer(change.expectedVersion, "expectedVersion"),
+    principalType: requiredString(change.principalType, "principalType") as "User" | "Group",
+    principalObjectId: optionalString(change.principalObjectId),
+    principalDisplayName: optionalString(change.principalDisplayName),
+    userUpn: optionalString(change.userUpn),
+    nodeId: requiredString(change.nodeId, "nodeId"),
+    businessRole: requiredString(change.businessRole, "businessRole") as
+      | "EVP" | "DepartmentHead" | "GroupManager" | "ProjectOwner" | "Delegate",
+    includeDescendants: boolean(change.includeDescendants, "includeDescendants"),
+    active: boolean(change.active, "active"),
+  };
+}
+
+function requiredString(value: unknown, name: string) {
+  if (typeof value !== "string" || !value.trim() || value.trim().length > 256) {
+    throw new Error(`${name} is invalid`);
+  }
+  return value.trim();
+}
+
+function optionalString(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || value.trim().length > 256) throw new Error("Optional string is invalid");
+  return value.trim() || undefined;
+}
+
+function integer(value: unknown, name: string) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} is invalid`);
+  }
+  return value;
+}
+
+function boolean(value: unknown, name: string) {
+  if (typeof value !== "boolean") throw new Error(`${name} is invalid`);
+  return value;
+}

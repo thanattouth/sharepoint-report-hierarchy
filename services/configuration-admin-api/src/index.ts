@@ -2,8 +2,17 @@ import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } 
 import {
   authorizeConfigurationActor,
   loadConfigurationAdminApiConfig,
+  parseBusinessNodeChange,
   parseMappingChanges,
+  parseScopeAssignmentChange,
 } from "../../../src/configuration/api-config";
+import {
+  applyBusinessNodeChange,
+  applyScopeAssignmentChange,
+  buildBusinessScopeSnapshot,
+  previewBusinessNodeChange,
+  previewScopeAssignmentChange,
+} from "../../../src/configuration/business-scope";
 import {
   applySiteMappingChanges,
   buildSiteMappingInbox,
@@ -131,6 +140,111 @@ export async function applyHandler(request: HttpRequest, context: InvocationCont
   }
 }
 
+export async function businessScopeHandler(request: HttpRequest, context: InvocationContext) {
+  try {
+    const source = await contextFor(request);
+    const auditEvents = await source.stores.hierarchyConfigurationAuditStore.listRecent();
+    return json(200, buildBusinessScopeSnapshot({
+      nodes: source.nodes,
+      assignments: source.assignments,
+      mappings: source.mappings,
+      auditEvents,
+    }));
+  } catch (error) {
+    context.error({ event: "configuration-business-scope-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
+    return json(error instanceof Error && error.message.includes("denied") ? 403 : 503, { error: "configuration-unavailable" });
+  }
+}
+
+async function readConfigurationChange(request: HttpRequest) {
+  const body = await request.json() as Record<string, unknown>;
+  if (!body.change) throw new Error("change is required");
+  return { body, change: body.change };
+}
+
+export async function businessNodePreviewHandler(request: HttpRequest, context: InvocationContext) {
+  try {
+    const [source, input] = await Promise.all([contextFor(request), readConfigurationChange(request)]);
+    return json(200, previewBusinessNodeChange({
+      change: parseBusinessNodeChange(input.change),
+      nodes: source.nodes,
+      assignments: source.assignments,
+      sites: source.sites,
+      mappings: source.mappings,
+    }));
+  } catch (error) {
+    context.error({ event: "configuration-business-node-preview-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
+    return json(error instanceof Error && error.message.includes("denied") ? 403 : 400, { error: "invalid-business-node-change" });
+  }
+}
+
+export async function businessNodeApplyHandler(request: HttpRequest, context: InvocationContext) {
+  try {
+    const [source, input] = await Promise.all([contextFor(request), readConfigurationChange(request)]);
+    if (input.body.confirm !== true) return json(400, { error: "preview-confirmation-required" });
+    const saved = await applyBusinessNodeChange({
+      change: parseBusinessNodeChange(input.change),
+      actor: source.actor,
+      nodes: source.nodes,
+      assignments: source.assignments,
+      sites: source.sites,
+      mappings: source.mappings,
+      nodeStore: source.stores.hierarchyNodeStore,
+      auditStore: source.stores.hierarchyConfigurationAuditStore,
+    });
+    context.log({ event: "configuration-business-node-applied", nodeId: saved.id, version: saved.version });
+    return json(200, { status: "applied", entityId: saved.id, version: saved.version });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    context.error({ event: "configuration-business-node-apply-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
+    return json(message.includes("denied") ? 403 : message.includes("version conflict") ? 409 : 400, { error: "business-node-change-rejected" });
+  }
+}
+
+export async function scopeAssignmentPreviewHandler(request: HttpRequest, context: InvocationContext) {
+  try {
+    const [source, input] = await Promise.all([contextFor(request), readConfigurationChange(request)]);
+    return json(200, previewScopeAssignmentChange({
+      change: parseScopeAssignmentChange(input.change),
+      nodes: source.nodes,
+      assignments: source.assignments,
+      sites: source.sites,
+      mappings: source.mappings,
+    }));
+  } catch (error) {
+    context.error({ event: "configuration-scope-assignment-preview-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
+    return json(error instanceof Error && error.message.includes("denied") ? 403 : 400, { error: "invalid-scope-assignment-change" });
+  }
+}
+
+export async function scopeAssignmentApplyHandler(request: HttpRequest, context: InvocationContext) {
+  try {
+    const [source, input] = await Promise.all([contextFor(request), readConfigurationChange(request)]);
+    if (input.body.confirm !== true) return json(400, { error: "preview-confirmation-required" });
+    const saved = await applyScopeAssignmentChange({
+      change: parseScopeAssignmentChange(input.change),
+      actor: source.actor,
+      nodes: source.nodes,
+      assignments: source.assignments,
+      sites: source.sites,
+      mappings: source.mappings,
+      assignmentStore: source.stores.scopeAssignmentStore,
+      auditStore: source.stores.hierarchyConfigurationAuditStore,
+    });
+    context.log({ event: "configuration-scope-assignment-applied", assignmentId: saved.id, version: saved.version });
+    return json(200, { status: "applied", entityId: saved.id, version: saved.version });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    context.error({ event: "configuration-scope-assignment-apply-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
+    return json(message.includes("denied") ? 403 : message.includes("version conflict") ? 409 : 400, { error: "scope-assignment-change-rejected" });
+  }
+}
+
 app.http("configuration-inbox", { methods: ["GET"], authLevel: "function", route: "configuration/site-mappings", handler: inboxHandler });
 app.http("configuration-preview", { methods: ["POST"], authLevel: "function", route: "configuration/site-mappings/preview", handler: previewHandler });
 app.http("configuration-apply", { methods: ["POST"], authLevel: "function", route: "configuration/site-mappings/apply", handler: applyHandler });
+app.http("configuration-business-scope", { methods: ["GET"], authLevel: "function", route: "configuration/business-scope", handler: businessScopeHandler });
+app.http("configuration-business-node-preview", { methods: ["POST"], authLevel: "function", route: "configuration/business-nodes/preview", handler: businessNodePreviewHandler });
+app.http("configuration-business-node-apply", { methods: ["POST"], authLevel: "function", route: "configuration/business-nodes/apply", handler: businessNodeApplyHandler });
+app.http("configuration-scope-assignment-preview", { methods: ["POST"], authLevel: "function", route: "configuration/scope-assignments/preview", handler: scopeAssignmentPreviewHandler });
+app.http("configuration-scope-assignment-apply", { methods: ["POST"], authLevel: "function", route: "configuration/scope-assignments/apply", handler: scopeAssignmentApplyHandler });

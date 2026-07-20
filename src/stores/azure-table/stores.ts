@@ -11,6 +11,7 @@ import type {
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  HierarchyConfigurationAuditEvent,
   SensitivityInventoryItem,
   SensitivityScanRun,
   SiteSensitivitySummary,
@@ -20,6 +21,7 @@ import type {
   DeltaStateStore,
   InventoryStore,
   HierarchyNodeStore,
+  HierarchyConfigurationAuditStore,
   ScanRunStore,
   SiteStore,
   SiteMappingStore,
@@ -32,6 +34,7 @@ import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromHierarchyNodeEntity,
+  fromHierarchyConfigurationAuditEntity,
   fromScanRunEntity,
   fromSiteEntity,
   fromSiteMappingEntity,
@@ -42,6 +45,7 @@ import {
   toDeltaStateEntity,
   toInventoryEntity,
   toHierarchyNodeEntity,
+  toHierarchyConfigurationAuditEntity,
   toScanRunEntity,
   toSiteEntity,
   toSiteMappingEntity,
@@ -52,6 +56,7 @@ import {
   type DeltaStateEntity,
   type InventoryEntity,
   type HierarchyNodeEntity,
+  type HierarchyConfigurationAuditEntity,
   type ScanRunEntity,
   type SiteEntity,
   type SiteMappingEntity,
@@ -320,9 +325,35 @@ export class AzureTableHierarchyNodeStore implements HierarchyNodeStore {
     return nodes.sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  async save(node: GovernanceHierarchyNode) {
+  async get(nodeId: string) {
+    try {
+      const entity = await this.client.getEntity<HierarchyNodeEntity>(
+        encodeURIComponent(this.tenantId),
+        encodeURIComponent(nodeId),
+      );
+      return fromHierarchyNodeEntity(entity as HierarchyNodeEntity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async save(node: GovernanceHierarchyNode, expectedVersion?: number) {
     if (!node.id.trim() || !node.name.trim()) throw new Error("Hierarchy node ID and name are required");
-    await this.client.upsertEntity(toHierarchyNodeEntity(this.tenantId, node), "Replace");
+    const entity = toHierarchyNodeEntity(this.tenantId, node);
+    if (expectedVersion === undefined) {
+      await this.client.upsertEntity(entity, "Replace");
+      return;
+    }
+    if (expectedVersion === 0) {
+      await this.client.createEntity(entity);
+      return;
+    }
+    const current = await this.client.getEntity<HierarchyNodeEntity>(entity.partitionKey, entity.rowKey);
+    if ((current.version ?? 1) !== expectedVersion) {
+      throw new Error(`Hierarchy node version conflict for ${node.id}`);
+    }
+    await this.client.updateEntity(entity, "Replace", { etag: current.etag });
   }
 }
 
@@ -339,8 +370,59 @@ export class AzureTableScopeAssignmentStore implements ScopeAssignmentStore {
     return assignments.sort((left, right) => (left.id ?? "").localeCompare(right.id ?? ""));
   }
 
-  async save(assignment: GovernanceHierarchyAssignment) {
-    await this.client.upsertEntity(toScopeAssignmentEntity(this.tenantId, assignment), "Replace");
+  async get(assignmentId: string) {
+    try {
+      const entity = await this.client.getEntity<ScopeAssignmentEntity>(
+        encodeURIComponent(this.tenantId),
+        encodeURIComponent(assignmentId),
+      );
+      return fromScopeAssignmentEntity(entity as ScopeAssignmentEntity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async save(assignment: GovernanceHierarchyAssignment, expectedVersion?: number) {
+    const entity = toScopeAssignmentEntity(this.tenantId, assignment);
+    if (expectedVersion === undefined) {
+      await this.client.upsertEntity(entity, "Replace");
+      return;
+    }
+    if (expectedVersion === 0) {
+      await this.client.createEntity(entity);
+      return;
+    }
+    const current = await this.client.getEntity<ScopeAssignmentEntity>(entity.partitionKey, entity.rowKey);
+    if ((current.version ?? 1) !== expectedVersion) {
+      throw new Error(`Scope assignment version conflict for ${assignment.id}`);
+    }
+    await this.client.updateEntity(entity, "Replace", { etag: current.etag });
+  }
+}
+
+export class AzureTableHierarchyConfigurationAuditStore implements HierarchyConfigurationAuditStore {
+  constructor(private readonly client: TableClient, private readonly tenantId: string) {}
+
+  async listRecent(entityType?: HierarchyConfigurationAuditEvent["entityType"], entityId?: string) {
+    const tenantKey = encodeURIComponent(this.tenantId);
+    const prefix = entityType
+      ? `${tenantKey}|configuration|${entityType}|${entityId ? encodeURIComponent(entityId) : ""}`
+      : `${tenantKey}|configuration|`;
+    const entities = this.client.listEntities<HierarchyConfigurationAuditEntity>({
+      queryOptions: {
+        filter: `PartitionKey ge '${odata(prefix)}' and PartitionKey lt '${odata(`${prefix}~`)}'`,
+      },
+    });
+    const events: HierarchyConfigurationAuditEvent[] = [];
+    for await (const entity of entities) {
+      events.push(fromHierarchyConfigurationAuditEntity(entity as HierarchyConfigurationAuditEntity));
+    }
+    return events.sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 100);
+  }
+
+  async save(event: HierarchyConfigurationAuditEvent) {
+    await this.client.createEntity(toHierarchyConfigurationAuditEntity(this.tenantId, event));
   }
 }
 
@@ -457,6 +539,14 @@ export function createAzureTableStores(input: {
     ),
     siteMappingAuditStore: new AzureTableSiteMappingAuditStore(
       new TableClient(input.config.endpoint, input.config.siteMappingAuditTableName, input.credential),
+      input.tenantId,
+    ),
+    hierarchyConfigurationAuditStore: new AzureTableHierarchyConfigurationAuditStore(
+      new TableClient(
+        input.config.endpoint,
+        input.config.hierarchyConfigurationAuditTableName,
+        input.credential,
+      ),
       input.tenantId,
     ),
   };

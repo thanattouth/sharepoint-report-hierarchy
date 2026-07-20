@@ -96,6 +96,14 @@ test("Site Mapping Admin Inbox fails closed and redirects unauthenticated users 
   assert.equal(location.searchParams.get("returnTo"), "/admin/site-mappings");
 });
 
+test("Business Scope Admin fails closed and redirects unauthenticated users to Entra", async () => {
+  const response = await render("/admin/business-scope");
+  assert.equal(response.status, 307);
+  const location = new URL(response.headers.get("location"));
+  assert.equal(location.pathname, "/api/auth/entra/login");
+  assert.equal(location.searchParams.get("returnTo"), "/admin/business-scope");
+});
+
 test("server-renders an Entra authorization denial state without sensitive configuration", async () => {
   const response = await render("/auth/denied?reason=report-admin-role-required");
   const html = await response.text();

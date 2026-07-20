@@ -4,6 +4,12 @@ import type {
   SiteMappingInboxStatus,
   SiteMappingPreview,
 } from "./site-mapping";
+import type {
+  BusinessConfigurationPreview,
+  BusinessNodeChange,
+  BusinessScopeSnapshot,
+  ScopeAssignmentChange,
+} from "./business-scope";
 
 export type SiteMappingNodeOption = {
   id: string;
@@ -234,4 +240,162 @@ export async function applySiteMappingChangesFromApi(
   const body: unknown = await response.json();
   if (!isApplyResponse(body)) throw new Error("Configuration Admin API returned an invalid apply result");
   return body;
+}
+
+function isBusinessScopeSnapshot(value: unknown): value is BusinessScopeSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Partial<BusinessScopeSnapshot>;
+  return Array.isArray(snapshot.nodes)
+    && snapshot.nodes.every((node) => node
+      && typeof node.id === "string"
+      && typeof node.name === "string"
+      && typeof node.breadcrumb === "string"
+      && typeof node.active === "boolean"
+      && Number.isInteger(node.version))
+    && Array.isArray(snapshot.assignments)
+    && snapshot.assignments.every((assignment) => assignment
+      && typeof assignment.id === "string"
+      && typeof assignment.nodeId === "string"
+      && typeof assignment.breadcrumb === "string"
+      && Number.isInteger(assignment.version))
+    && Array.isArray(snapshot.auditEvents)
+    && Boolean(snapshot.counts)
+    && Number.isInteger(snapshot.counts?.activeNodes)
+    && Number.isInteger(snapshot.counts?.activeAssignments)
+    && Number.isInteger(snapshot.counts?.mappedSites)
+    && Number.isInteger(snapshot.counts?.evpRoots);
+}
+
+function isBusinessConfigurationPreview(value: unknown): value is BusinessConfigurationPreview {
+  if (!value || typeof value !== "object") return false;
+  const preview = value as Partial<BusinessConfigurationPreview>;
+  return ["HierarchyNode", "ScopeAssignment"].includes(preview.entityType ?? "")
+    && ["created", "updated", "moved", "reactivated", "deactivated"].includes(preview.action ?? "")
+    && typeof preview.title === "string"
+    && typeof preview.summary === "string"
+    && Number.isInteger(preview.expectedVersion)
+    && Number.isInteger(preview.nextVersion)
+    && Boolean(preview.impact);
+}
+
+export async function fetchBusinessScope(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<BusinessScopeSnapshot> {
+  const response = await callConfigurationAdminApi(
+    config,
+    actor,
+    "/configuration/business-scope",
+    { method: "GET" },
+    fetchImpl,
+  );
+  if (!response.ok) throw new Error(`Configuration Admin API returned HTTP ${response.status}`);
+  const body: unknown = await response.json();
+  if (!isBusinessScopeSnapshot(body)) throw new Error("Configuration Admin API returned an invalid business scope");
+  return body;
+}
+
+async function previewBusinessConfigurationChange(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  path: string,
+  change: BusinessNodeChange | ScopeAssignmentChange,
+  fetchImpl: typeof fetch,
+) {
+  const response = await callConfigurationAdminApi(
+    config,
+    actor,
+    path,
+    { method: "POST", body: JSON.stringify({ change }) },
+    fetchImpl,
+  );
+  if (response.status === 409) throw new Error("Configuration changed; refresh and preview again");
+  if (!response.ok) throw new Error(`Configuration Admin API returned HTTP ${response.status}`);
+  const body: unknown = await response.json();
+  if (!isBusinessConfigurationPreview(body)) throw new Error("Configuration Admin API returned an invalid preview");
+  return body;
+}
+
+async function applyBusinessConfigurationChange(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  path: string,
+  change: BusinessNodeChange | ScopeAssignmentChange,
+  fetchImpl: typeof fetch,
+) {
+  const response = await callConfigurationAdminApi(
+    config,
+    actor,
+    path,
+    { method: "POST", body: JSON.stringify({ change, confirm: true }) },
+    fetchImpl,
+  );
+  if (response.status === 409) throw new Error("Configuration changed; refresh and preview again");
+  if (!response.ok) throw new Error(`Configuration Admin API returned HTTP ${response.status}`);
+  const body = await response.json() as Record<string, unknown>;
+  if (body.status !== "applied" || typeof body.entityId !== "string" || !Number.isInteger(body.version)) {
+    throw new Error("Configuration Admin API returned an invalid apply result");
+  }
+  return body as { status: "applied"; entityId: string; version: number };
+}
+
+export function fetchBusinessNodePreview(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  change: BusinessNodeChange,
+  fetchImpl: typeof fetch = fetch,
+) {
+  return previewBusinessConfigurationChange(
+    config,
+    actor,
+    "/configuration/business-nodes/preview",
+    change,
+    fetchImpl,
+  );
+}
+
+export function applyBusinessNodeChangeFromApi(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  change: BusinessNodeChange,
+  fetchImpl: typeof fetch = fetch,
+) {
+  return applyBusinessConfigurationChange(
+    config,
+    actor,
+    "/configuration/business-nodes/apply",
+    change,
+    fetchImpl,
+  );
+}
+
+export function fetchScopeAssignmentPreview(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  change: ScopeAssignmentChange,
+  fetchImpl: typeof fetch = fetch,
+) {
+  return previewBusinessConfigurationChange(
+    config,
+    actor,
+    "/configuration/scope-assignments/preview",
+    change,
+    fetchImpl,
+  );
+}
+
+export function applyScopeAssignmentChangeFromApi(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  change: ScopeAssignmentChange,
+  fetchImpl: typeof fetch = fetch,
+) {
+  return applyBusinessConfigurationChange(
+    config,
+    actor,
+    "/configuration/scope-assignments/apply",
+    change,
+    fetchImpl,
+  );
 }
