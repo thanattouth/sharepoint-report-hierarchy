@@ -19,6 +19,9 @@ npm run p7:config:migrate:local
 npm run p7:config:migrate:apply:local
 ```
 
+These commands load only the `p7-configuration` env profile. Populate `.env.storage.local` and
+`.env.configuration-admin.local`; `.env.p4.local` is supported only as a filtered migration fallback.
+
 The apply path creates missing configuration tables, seeds nodes and assignments, migrates only
 Sites that do not already have a canonical row, then reads all records back and validates counts,
 references, parent order, cycles, active Sites, and unique placement.

@@ -47,7 +47,8 @@ rollback against a shared resource group.
 
 ## Local bounded persistence
 
-Keep the real values in the ignored `.env.p4.local` file and add:
+Keep the real values in ignored `.env.storage.local` and workload-specific local files described
+in `docs/environment-profiles.md`. Do not place new values in the legacy `.env.p4.local`. Add:
 
 ```dotenv
 AZURE_STORAGE_ACCOUNT_NAME=<isolated-storage-account>

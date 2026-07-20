@@ -130,6 +130,10 @@ Enforce all of these on every change:
 - Load populated local env files with the runtime's non-executing env-file parser. Do not shell-
   source files containing secrets or JSON configuration because shell evaluation can corrupt
   values or execute special characters.
+- Run local operator scripts through the named env-profile runner. Keep Storage, Graph pilot,
+  hosted scanner, Report API, Sites client, deployment operator, and Configuration Admin values in
+  separate scoped files. Pass only allowlisted keys to child processes, and treat `.env.p4.local`
+  as a temporary filtered fallback rather than a destination for new settings.
 - Record production-critical permission, storage, schema, retention, and deployment decisions in ADRs/runbooks. Require a migration and rollback plan for persistent schema changes.
 - Review dependency vulnerabilities before a release; do not apply breaking automated fixes without validating the Sites build and runtime.
 

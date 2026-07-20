@@ -30,7 +30,8 @@ Record all of these decisions before supplying credentials:
 
 ## Scanner environment contract
 
-Copy `.env.example` to a local secret-managed environment. Do not commit the populated
+Copy `.env.graph-pilot.example` to `.env.graph-pilot.local`. Copy
+`.env.storage.example` only for persistence commands. Do not commit the populated
 file. Required values are:
 
 - `SCANNER_TENANT_ID`

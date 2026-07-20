@@ -55,7 +55,8 @@ completion page; it does not receive or store a scanner token.
 
 ## Build and deploy
 
-Use the non-executing Node env-file loader; never shell-source the populated env file.
+Use the allowlisted env-profile runner documented in `docs/environment-profiles.md`; never
+shell-source a populated env file.
 
 ```bash
 npm run p5:scanner:package

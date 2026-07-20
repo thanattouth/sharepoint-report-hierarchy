@@ -17,6 +17,10 @@ npm install
 npm run dev
 ```
 
+Local Azure/operator commands use scoped env profiles instead of one combined file. Start with
+[docs/environment-profiles.md](docs/environment-profiles.md) and copy only the relevant
+`.env.*.example` files. The old `.env.p4.local` is a filtered compatibility fallback only.
+
 Quality gates:
 
 ```bash

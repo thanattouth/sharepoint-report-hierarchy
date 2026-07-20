@@ -24,7 +24,9 @@ keys do not provide user identity or business authorization.
 
 ## Reproducible commands
 
-Keep tenant-specific values in ignored `.env.p4.local`. Do not shell-source it.
+Keep tenant-specific values in ignored `.env.storage.local`, `.env.report-api.local`, and
+`.env.p6-operator.local`. Keep the Sites connection key in `.env.report-client.local` for local
+work only. Do not shell-source any env file.
 
 ```bash
 npm run p6:api:what-if:local
