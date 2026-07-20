@@ -68,12 +68,10 @@ export function buildSiteMappingInbox(
   mappings: GovernanceHierarchySiteMapping[],
 ): SiteMappingInboxRow[] {
   const activeNodes = new Map(nodes.filter((node) => node.active).map((node) => [node.id, node]));
-  const placementBySite = new Map(
-    mappings.filter((mapping) => mapping.active).map((mapping) => [mapping.siteId, mapping]),
-  );
+  const placementBySite = new Map(mappings.map((mapping) => [mapping.siteId, mapping]));
   return sites.map<SiteMappingInboxRow>((site) => {
     const placement = placementBySite.get(site.id);
-    const node = placement ? activeNodes.get(placement.nodeId) : undefined;
+    const node = placement?.active ? activeNodes.get(placement.nodeId) : undefined;
     return {
       siteId: site.id,
       siteName: site.name,
@@ -207,6 +205,51 @@ export async function applySiteMappingChanges(input: {
       version,
     };
     await input.auditStore.save(event);
+    saved.push(mapping);
+  }
+  return saved;
+}
+
+export async function deactivateSiteMappingChanges(input: {
+  siteIds: string[];
+  actor: string;
+  now?: Date;
+  mappingStore: SiteMappingStore;
+  auditStore: SiteMappingAuditStore;
+}): Promise<GovernanceHierarchySiteMapping[]> {
+  const actor = input.actor.trim().toLocaleLowerCase();
+  if (!actor) throw new Error("Actor is required");
+  const siteIds = [...new Set(input.siteIds.map((siteId) => siteId.trim()).filter(Boolean))];
+  if (siteIds.length === 0) throw new Error("Select at least one Site mapping to deactivate");
+  if (siteIds.length > 100) throw new Error("Site mapping deactivation is limited to 100 Sites");
+  const occurredAt = (input.now ?? new Date()).toISOString();
+  const saved: GovernanceHierarchySiteMapping[] = [];
+  for (const siteId of siteIds) {
+    const previous = await input.mappingStore.get(siteId);
+    if (!previous?.active) continue;
+    const actualVersion = previous.version ?? 0;
+    if (actualVersion < 1) {
+      throw new Error(`Active Site mapping is missing a persisted version for ${siteId}`);
+    }
+    const version = actualVersion + 1;
+    const mapping: GovernanceHierarchySiteMapping = {
+      ...previous,
+      active: false,
+      version,
+      updatedAt: occurredAt,
+      updatedBy: actor,
+    };
+    await input.mappingStore.save(mapping, actualVersion);
+    await input.auditStore.save({
+      id: crypto.randomUUID(),
+      siteId,
+      previousNodeId: previous.nodeId,
+      nodeId: previous.nodeId,
+      action: "deactivated",
+      actor,
+      occurredAt,
+      version,
+    });
     saved.push(mapping);
   }
   return saved;

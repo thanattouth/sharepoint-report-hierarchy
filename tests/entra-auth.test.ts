@@ -73,8 +73,10 @@ test("Entra session cookie is confidential, tamper-evident, expiring, and role-g
   const sealed = await sealProtectedCookie(session, config, "session");
   assert.doesNotMatch(sealed, /thanattouth|ReportAdmin/i);
   assert.deepEqual(await openProtectedCookie<EntraSession>(sealed, config, "session"), session);
+  const tamperIndex = Math.floor(sealed.length / 2);
+  const tampered = `${sealed.slice(0, tamperIndex)}${sealed[tamperIndex] === "A" ? "B" : "A"}${sealed.slice(tamperIndex + 1)}`;
   await assert.rejects(
-    openProtectedCookie<EntraSession>(`${sealed.slice(0, -1)}A`, config, "session"),
+    openProtectedCookie<EntraSession>(tampered, config, "session"),
     /invalid/,
   );
   const cookie = serializeCookie(ENTRA_SESSION_COOKIE, sealed, { maxAge: 60, secure: true });

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applySiteMappingChanges,
   buildSiteMappingInbox,
+  deactivateSiteMappingChanges,
   hierarchyBreadcrumb,
   previewSiteMappingChange,
   querySiteMappingInbox,
@@ -112,4 +113,44 @@ test("applying a mapping uses optimistic versions and emits an audit event", asy
     }),
     /version conflict/,
   );
+});
+
+test("deactivating mappings preserves versions so an unmapped Site can be assigned again", async () => {
+  const previous: GovernanceHierarchySiteMapping = {
+    siteId: "site-nova",
+    nodeId: "project-nova",
+    active: true,
+    version: 3,
+    updatedAt: "2026-07-19T00:00:00.000Z",
+    updatedBy: "previous@contoso.com",
+  };
+  const mappings = new MemoryMappingStore(new Map([[previous.siteId, previous]]));
+  const audit = new MemoryAuditStore();
+  const [deactivated] = await deactivateSiteMappingChanges({
+    siteIds: [previous.siteId],
+    actor: "ADMIN@contoso.com",
+    now: new Date("2026-07-20T05:00:00.000Z"),
+    mappingStore: mappings,
+    auditStore: audit,
+  });
+  assert.equal(deactivated.active, false);
+  assert.equal(deactivated.version, 4);
+  assert.equal(deactivated.updatedBy, "admin@contoso.com");
+  assert.equal(audit.events[0].action, "deactivated");
+  const [row] = buildSiteMappingInbox(sharePointSites, hierarchyNodes, [deactivated])
+    .filter((candidate) => candidate.siteId === previous.siteId);
+  assert.equal(row.status, "unmapped");
+  assert.equal(row.version, 4);
+
+  const [reactivated] = await applySiteMappingChanges({
+    changes: [{ siteId: previous.siteId, expectedVersion: 4 }],
+    targetNodeId: "project-nova",
+    actor: "admin@contoso.com",
+    nodes: hierarchyNodes,
+    mappingStore: mappings,
+    auditStore: audit,
+  });
+  assert.equal(reactivated.active, true);
+  assert.equal(reactivated.version, 5);
+  assert.equal(audit.events[1].action, "reactivated");
 });

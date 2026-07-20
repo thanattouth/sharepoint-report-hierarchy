@@ -70,3 +70,23 @@ P8 makes the Site Mapping Admin Inbox visibility and Apply path production-shape
 still uses the bounded pilot persona/report-API contract to prove business hierarchy. Replacing
 that selector with the signed-in Entra object ID, UPN, and group IDs is the next authorization
 slice; do not claim production report-user visibility until it is complete.
+
+## Resetting test Site placements
+
+Use the audited reset only when the customer has declared the current placements test data:
+
+```bash
+npm run p8:mappings:reset:local
+npm run p8:mappings:reset:apply:local -- --confirm-active-count=<dry-run-count>
+```
+
+The command deactivates canonical placements; it does not delete them, erase scan/cache rows,
+reactivate excluded candidate Sites, or enable additional scanning. Every changed placement keeps
+its node, increments its version, records the verified operator UPN, and emits a `deactivated`
+audit event. The Admin Inbox then shows active registry Sites as unmapped while preserving the
+expected version needed for a later Entra-authorized remap.
+
+The 2026-07-20 pilot reset deactivated 8/8 active placements. Verification through the deployed
+Configuration Admin API returned 63 total registry rows: 0 mapped, 8 active/unmapped with persisted
+version 2, and 55 intentionally inactive candidates. No inactive candidate was reactivated and no
+new scanner target or sensitivity extraction job was created.

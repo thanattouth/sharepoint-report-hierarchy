@@ -54,6 +54,8 @@
     "p7:admin:deploy:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-deploy-configuration-admin-api.ts --deploy",
     "p7:admin:publish:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-publish-configuration-admin-api.ts",
     "p7:admin:check:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-check-configuration-admin-api.ts",
+    "p8:mappings:reset:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p8-reset-site-mappings.ts",
+    "p8:mappings:reset:apply:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p8-reset-site-mappings.ts --apply",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

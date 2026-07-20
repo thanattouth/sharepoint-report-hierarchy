@@ -7,7 +7,8 @@ scheduled scanner or the report-reader permission boundary.
 
 - `HierarchyNodes`: 16 validated nodes in two independent EVP trees.
 - `ScopeAssignments`: 10 pilot user assignments; the contract also supports Entra groups.
-- `HierarchySitePlacements`: 8 canonical Site rows migrated from the legacy mapping table.
+- `HierarchySitePlacements`: 8 canonical Site rows migrated from the legacy mapping table. All 8
+  are currently inactive after the audited Admin-flow reset on 2026-07-20.
 - `HierarchySiteMappingAudit`: append-only audit target for configuration changes.
 - Report API: `Storage Table Data Reader`, with `REPORT_HIERARCHY_SOURCE=table`.
 - Legacy `HierarchySiteMappings`: retained unchanged for rollback.
@@ -66,8 +67,10 @@ npm run p7:admin:publish:local
 npm run p7:admin:check:local
 ```
 
-The verification calls only inbox and preview. It must reconcile the 8 canonical placements while
-allowing additional inactive/unmapped `ScannerSites` records in the inbox. If Flex Consumption
+The verification calls inbox and preview when at least one mapped row exists. Set
+`P7_EXPECTED_MAPPED_SITE_COUNT` to the reviewed state; use `0` during the clean Admin-flow reset.
+It must reconcile canonical placements while allowing additional inactive/unmapped `ScannerSites`
+records in the inbox. If Flex Consumption
 indexes the previous package after One Deploy, wait for the active deployment to complete and
 restart only the Configuration Admin Function; confirm the route metadata before retrying.
 

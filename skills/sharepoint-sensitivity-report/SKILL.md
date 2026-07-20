@@ -118,6 +118,11 @@ Enforce all of these on every change:
   page, inbox, preview, and apply routes. Derive the Configuration actor from the verified session
   UPN, never browser input or a fixed bridge setting. Keep PKCE, state, nonce, exact-origin checks,
   encrypted HttpOnly cookies, short expiry, optimistic versions, and audit events fail-closed.
+- Reset test placements by deactivating canonical rows with an incremented version and a
+  `deactivated` audit event. Never delete placement history, reset an existing row to version zero,
+  reactivate excluded scanner candidates, or trigger broader scanning merely to prepare the Admin
+  Inbox. Verify the Configuration Admin API returns the persisted inactive-row version before
+  testing remap Apply.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through
