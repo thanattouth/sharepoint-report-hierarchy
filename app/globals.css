@@ -772,6 +772,8 @@ td small { margin-top: 3px; color: var(--neutral); max-width: 260px; overflow: h
   font-weight: 500;
 }
 .admin-boundary-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.admin-sign-out { color: var(--text-secondary); font-size: 10px; font-weight: 500; }
+.admin-sign-out:hover { color: var(--primary); }
 .admin-main { max-width: 1440px; }
 .admin-page-heading { align-items: center; padding-block: 48px 36px; }
 .admin-page-heading h1 { font-size: clamp(42px, 5vw, 56px); }
@@ -828,6 +830,9 @@ td small { margin-top: 3px; color: var(--neutral); max-width: 260px; overflow: h
 .admin-error { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #f4c7c3; color: #b42318; background: #fffafa; font-size: 10px; }
 .admin-error strong { flex: 0 0 auto; font-weight: 500; }
 .admin-error span { color: #9f4a44; }
+.admin-success { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #bde6d6; color: #067a58; background: #f7fefb; font-size: 10px; }
+.admin-success strong { flex: 0 0 auto; font-weight: 500; }
+.admin-success span { color: #35816a; }
 .admin-table-wrap { width: 100%; overflow-x: auto; }
 .admin-table { min-width: 940px; }
 .admin-table th { height: 38px; font-size: 8px; }
@@ -915,8 +920,19 @@ td small { margin-top: 3px; color: var(--neutral); max-width: 260px; overflow: h
 .apply-lock > span { font-family: var(--font-mono-stack); }
 .apply-lock strong { display: block; font-size: 9px; font-weight: 500; }
 .apply-lock p { margin: 3px 0 0; color: #986619; font-size: 8px; line-height: 1.5; }
-.apply-button { width: calc(100% - 36px); margin: 0 18px; color: #71717a; border-color: #dedee4; background: #f4f4f5; }
+.apply-lock.apply-ready { color: #067a58; border-color: #bde6d6; background: #f7fefb; }
+.apply-lock.apply-ready p { color: #35816a; }
+.apply-button { width: calc(100% - 36px); margin: 0 18px; color: #fff; border-color: var(--primary); background: var(--primary); }
+.apply-button:hover:not(:disabled) { border-color: var(--primary-hover); background: var(--primary-hover); box-shadow: 0 4px 12px rgba(99, 102, 241, .25); transform: translateY(-1px); }
+.apply-button:disabled { color: #71717a; border-color: #dedee4; background: #f4f4f5; cursor: not-allowed; }
 .mapping-action-footnote { margin: 12px 18px 16px; color: var(--neutral); font-size: 8px; line-height: 1.55; }
+
+.auth-state-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-state-card { width: min(520px, 100%); padding: 40px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); text-align: center; }
+.auth-state-mark { width: 44px; height: 44px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid #f4c7c3; border-radius: 50%; color: var(--error); font-family: var(--font-mono-stack); }
+.auth-state-card h1 { margin: 8px 0 12px; font-family: var(--font-display); font-size: 32px; font-weight: 600; letter-spacing: -.03em; }
+.auth-state-card > p:not(.eyebrow) { margin: 0 auto; color: var(--text-secondary); line-height: 1.65; }
+.auth-state-actions { display: flex; justify-content: center; gap: 8px; margin-top: 24px; }
 
 @media (max-width: 1180px) {
   .admin-workspace { grid-template-columns: minmax(0, 1fr) 320px; }

@@ -98,8 +98,15 @@ export const ENV_FILE_SCOPES = {
   ".env.configuration-client.local": [
     "CONFIG_ADMIN_API_BASE_URL",
     "CONFIG_ADMIN_API_FUNCTION_KEY",
-    "CONFIG_ADMIN_BRIDGE_ACTOR",
     "CONFIG_ADMIN_API_TIMEOUT_MS",
+  ],
+  ".env.web-auth.local": [
+    "ENTRA_AUTH_TENANT_ID",
+    "ENTRA_AUTH_CLIENT_ID",
+    "ENTRA_AUTH_CLIENT_SECRET",
+    "ENTRA_AUTH_SESSION_SECRET",
+    "ENTRA_AUTH_ALLOWED_ORIGINS",
+    "ENTRA_AUTH_SESSION_HOURS",
   ],
   ".env.p7-operator.local": [
     "P7_AZURE_SUBSCRIPTION_ID",
@@ -136,6 +143,7 @@ export const ENV_PROFILES = {
     ".env.p7-operator.local",
   ],
   "p7-sites": [".env.configuration-client.local"],
+  "p8-sites": [".env.configuration-client.local", ".env.web-auth.local"],
 } as const satisfies Record<string, readonly EnvFileName[]>;
 
 export type EnvProfileName = keyof typeof ENV_PROFILES;
@@ -161,7 +169,7 @@ export function validateScopedEnvKeys(file: EnvFileName, keys: string[]): string
   return keys.filter((key) => KNOWN_ENV_KEYS.has(key) && !allowed.has(key));
 }
 
-const MANAGED_ENV_PREFIX = /^(AZURE_|REPORT_|SCANNER_|P4_|P5_|P6_|P7_|CONFIG_ADMIN_)/;
+const MANAGED_ENV_PREFIX = /^(AZURE_|REPORT_|SCANNER_|P4_|P5_|P6_|P7_|P8_|CONFIG_ADMIN_|ENTRA_AUTH_)/;
 
 export function unknownManagedEnvKeys(keys: string[]): string[] {
   return keys.filter((key) => MANAGED_ENV_PREFIX.test(key) && !KNOWN_ENV_KEYS.has(key));

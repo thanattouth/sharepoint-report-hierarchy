@@ -36,7 +36,7 @@ function statusCopy(status: SiteMappingInboxRow["status"]) {
   return "Inactive";
 }
 
-export function SiteMappingAdminInbox() {
+export function SiteMappingAdminInbox({ administratorUpn }: { administratorUpn: string }) {
   const [status, setStatus] = useState<SiteMappingInboxStatus>("unmapped");
   const [queryDraft, setQueryDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -49,7 +49,10 @@ export function SiteMappingAdminInbox() {
   const [preview, setPreview] = useState<SiteMappingPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,7 +80,7 @@ export function SiteMappingAdminInbox() {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [page, pageSize, query, status]);
+  }, [page, pageSize, query, reloadNonce, status]);
 
   const filteredNodes = useMemo(() => {
     const normalized = nodeQuery.trim().toLocaleLowerCase();
@@ -94,6 +97,7 @@ export function SiteMappingAdminInbox() {
     if (nextStatus === status) return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
     setStatus(nextStatus);
     setPage(1);
     setSelected(new Map());
@@ -108,6 +112,7 @@ export function SiteMappingAdminInbox() {
       return next;
     });
     setPreview(null);
+    setSuccess(null);
   }
 
   function togglePage() {
@@ -120,12 +125,14 @@ export function SiteMappingAdminInbox() {
       return next;
     });
     setPreview(null);
+    setSuccess(null);
   }
 
   async function requestPreview() {
     if (!targetNodeId || selected.size === 0) return;
     setPreviewing(true);
     setError(null);
+    setSuccess(null);
     try {
       const response = await fetch("/api/configuration/site-mappings/preview", {
         method: "POST",
@@ -148,6 +155,43 @@ export function SiteMappingAdminInbox() {
     }
   }
 
+  async function applyChanges() {
+    if (!preview || !targetNodeId || selected.size === 0) return;
+    setApplying(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/configuration/site-mappings/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetNodeId,
+          changes: [...selected.values()].map((row) => ({
+            siteId: row.siteId,
+            expectedVersion: row.version,
+          })),
+        }),
+      });
+      if (response.status === 409) {
+        throw new Error("version-conflict");
+      }
+      if (!response.ok) throw new Error(`Apply returned HTTP ${response.status}`);
+      const result = await response.json() as { siteCount: number };
+      setSuccess(`บันทึก business placement แล้ว ${result.siteCount} Sites โดย ${administratorUpn}`);
+      setSelected(new Map());
+      setPreview(null);
+      setReloadNonce((current) => current + 1);
+    } catch (cause) {
+      const conflict = cause instanceof Error && cause.message === "version-conflict";
+      setError(conflict
+        ? "มีผู้ดูแลแก้ mapping หลังจาก Preview กรุณาโหลดข้อมูลล่าสุดและ Preview ใหม่"
+        : "Apply ไม่สำเร็จ ระบบยังไม่บันทึกการเปลี่ยนแปลง กรุณาตรวจ session และลองใหม่");
+      setPreview(null);
+    } finally {
+      setApplying(false);
+    }
+  }
+
   return (
     <section className="admin-workspace" aria-label="Site Mapping administration">
       <div className="admin-inbox-column">
@@ -158,7 +202,7 @@ export function SiteMappingAdminInbox() {
           <i aria-hidden="true">→</i>
           <div><span>3</span><strong>Preview impact</strong><small>ตรวจ move และ principals</small></div>
           <i aria-hidden="true">→</i>
-          <div className="locked-step"><span>4</span><strong>Authenticated apply</strong><small>ล็อกไว้จนต่อ Entra admin</small></div>
+          <div><span>4</span><strong>Authenticated apply</strong><small>Entra ReportAdmin + audit</small></div>
         </section>
 
         <section className="panel admin-inbox-panel">
@@ -209,6 +253,7 @@ export function SiteMappingAdminInbox() {
           </div>
 
           {error ? <div className="admin-error" role="alert"><strong>Configuration unavailable</strong><span>{error}</span></div> : null}
+          {success ? <div className="admin-success" role="status"><strong>Mapping applied</strong><span>{success}</span></div> : null}
 
           <div className="admin-table-wrap">
             <table className="admin-table">
@@ -286,7 +331,7 @@ export function SiteMappingAdminInbox() {
           {targetNode ? <div className="target-proof"><span>{targetNode.type}</span><strong>{targetNode.breadcrumb}</strong></div> : <p className="node-picker-help">เลือก node เพื่อสร้าง impact preview</p>}
         </div>
 
-        <button className="button button-primary preview-button" type="button" disabled={!targetNodeId || selected.size === 0 || previewing} onClick={requestPreview}>{previewing ? "กำลังตรวจสอบ…" : "Preview impact"}</button>
+        <button className="button button-secondary preview-button" type="button" disabled={!targetNodeId || selected.size === 0 || previewing} onClick={requestPreview}>{previewing ? "กำลังตรวจสอบ…" : "Preview impact"}</button>
 
         {preview ? <section className="impact-preview" aria-live="polite">
           <div className="impact-preview-heading"><div><p className="eyebrow">IMPACT PREVIEW</p><h3>{preview.targetBreadcrumb}</h3></div><span>READY</span></div>
@@ -298,12 +343,12 @@ export function SiteMappingAdminInbox() {
           <div className="principal-impact"><strong>Direct principals at target</strong>{preview.affectedPrincipals.length ? <ul>{preview.affectedPrincipals.slice(0, 5).map((principal) => <li key={`${principal.label}:${principal.businessRole}`}><span>{principal.label}</span><small>{principal.businessRole}</small></li>)}</ul> : <p>ไม่มี direct principal ที่ node นี้</p>}</div>
         </section> : null}
 
-        <div className="apply-lock" role="status">
-          <span aria-hidden="true">◇</span>
-          <div><strong>Apply ยังถูกล็อก</strong><p>ต้อง derive ผู้ดูแลจาก authenticated Entra claims ก่อนเปิด browser write path</p></div>
+        <div className="apply-lock apply-ready" role="status">
+          <span aria-hidden="true">✓</span>
+          <div><strong>Entra authorization พร้อมใช้งาน</strong><p>Apply จะบันทึก actor เป็น {administratorUpn} และตรวจ expected version ทุก Site</p></div>
         </div>
-        <button className="button apply-button" type="button" disabled title="Authenticated administrator required">Apply mapping changes</button>
-        <p className="mapping-action-footnote">Function key และ pilot actor อยู่ฝั่ง server เท่านั้น · ทุก effective change จะใช้ expected version และเขียน audit event</p>
+        <button className="button apply-button" type="button" disabled={!preview || applying} onClick={applyChanges}>{applying ? "กำลังบันทึก…" : "Apply mapping changes"}</button>
+        <p className="mapping-action-footnote">Function key อยู่ฝั่ง server เท่านั้น · actor มาจาก verified Entra session · ทุก effective change ใช้ expected version และเขียน audit event</p>
       </aside>
     </section>
   );

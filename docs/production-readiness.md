@@ -22,8 +22,10 @@ This repository is an evolving production product, not a disposable prototype.
   closed; never substitute the scanner credential, an account key, or a browser token.
 - Separate the Function host identity from the report-cache reader identity. Scope the reader to
   `Storage Table Data Reader` on the cache account and keep host-storage write roles off it.
-- Treat Function-key + selectable-persona access as test-data pilot authentication only. Before
-  production, use Microsoft Entra caller authorization and derive UPN from authenticated claims.
+- Site Mapping administration uses single-tenant Entra OIDC and derives `ReportAdmin` plus the
+  audit UPN from verified claims. The main report's selectable persona remains test-data pilot
+  authentication only and must be replaced with the same immutable principal boundary before
+  production report-user visibility is claimed.
 - Run lint, type check, unit/rendered tests, build, and dependency audit before release.
 
 ## Dependency security baseline — 2026-07-14

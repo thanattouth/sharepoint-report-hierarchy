@@ -88,14 +88,19 @@ test("no-assignment state does not render inventory rows", async () => {
   assert.doesNotMatch(html, /FY27-Strategy\.pdf|Cashflow-Forecast\.xlsx/);
 });
 
-test("server-renders the Site Mapping Admin Inbox without exposing browser apply", async () => {
+test("Site Mapping Admin Inbox fails closed and redirects unauthenticated users to Entra", async () => {
   const response = await render("/admin/site-mappings");
+  assert.equal(response.status, 307);
+  const location = new URL(response.headers.get("location"));
+  assert.equal(location.pathname, "/api/auth/entra/login");
+  assert.equal(location.searchParams.get("returnTo"), "/admin/site-mappings");
+});
+
+test("server-renders an Entra authorization denial state without sensitive configuration", async () => {
+  const response = await render("/auth/denied?reason=report-admin-role-required");
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.match(html, /Site Mapping Inbox/);
-  assert.match(html, /FLAT SHAREPOINT INVENTORY/);
-  assert.match(html, /Assign business node/);
-  assert.match(html, /Function key stays private/);
-  assert.match(html, /Apply ยังถูกล็อก/);
-  assert.doesNotMatch(html, /CONFIG_ADMIN_API_FUNCTION_KEY|x-functions-key|server-secret/);
+  assert.match(html, /ไม่มีสิทธิ์เข้า Admin workspace/);
+  assert.match(html, /ReportAdmin/);
+  assert.doesNotMatch(html, /CONFIG_ADMIN_API_FUNCTION_KEY|x-functions-key|client-secret|session-secret/);
 });

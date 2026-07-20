@@ -3,37 +3,35 @@ import test from "node:test";
 import {
   fetchSiteMappingInbox,
   fetchSiteMappingPreview,
+  applySiteMappingChangesFromApi,
   loadConfigurationAdminBridgeConfig,
   parseSiteMappingInboxQuery,
 } from "../src/configuration/admin-bridge";
-import { POST as applyFromBrowser } from "../app/api/configuration/site-mappings/apply/route";
 
 const config = {
   baseUrl: "https://configuration.example.com/api",
   functionKey: "server-secret",
-  actor: "admin@contoso.com",
   timeoutMs: 1000,
 };
+const actor = "admin@contoso.com";
 
 test("Configuration Admin bridge validates server-only connection settings", () => {
   assert.deepEqual(loadConfigurationAdminBridgeConfig({
     CONFIG_ADMIN_API_BASE_URL: `${config.baseUrl}/`,
     CONFIG_ADMIN_API_FUNCTION_KEY: config.functionKey,
-    CONFIG_ADMIN_BRIDGE_ACTOR: "ADMIN@contoso.com",
     CONFIG_ADMIN_API_TIMEOUT_MS: "1000",
   }), config);
   assert.throws(() => loadConfigurationAdminBridgeConfig({
     CONFIG_ADMIN_API_BASE_URL: "http://configuration.example.com/api",
     CONFIG_ADMIN_API_FUNCTION_KEY: config.functionKey,
-    CONFIG_ADMIN_BRIDGE_ACTOR: config.actor,
   }), /HTTPS/);
 });
 
-test("Configuration Admin bridge keeps key and actor in server headers", async () => {
+test("Configuration Admin bridge keeps key and verified actor in server headers", async () => {
   let requestedUrl = "";
   let requestedHeaders = new Headers();
   let redirectMode: RequestRedirect | undefined;
-  const inbox = await fetchSiteMappingInbox(config, {
+  const inbox = await fetchSiteMappingInbox(config, actor, {
     status: "unmapped",
     query: "DGCS",
     page: 2,
@@ -57,12 +55,12 @@ test("Configuration Admin bridge keeps key and actor in server headers", async (
       pageCount: 2,
     });
   });
-  assert.equal(inbox.capabilities.apply, false);
+  assert.equal(inbox.capabilities.apply, true);
   assert.match(requestedUrl, /status=unmapped/);
   assert.match(requestedUrl, /q=DGCS/);
   assert.doesNotMatch(requestedUrl, /server-secret|admin%40contoso/);
   assert.equal(requestedHeaders.get("x-functions-key"), config.functionKey);
-  assert.equal(requestedHeaders.get("x-configuration-actor"), config.actor);
+  assert.equal(requestedHeaders.get("x-configuration-actor"), actor);
   assert.equal(redirectMode, "manual");
 });
 
@@ -73,15 +71,15 @@ test("Configuration Admin bridge validates query bounds and rejects redirects", 
   );
   assert.throws(() => parseSiteMappingInboxQuery("https://app.example.com/api?status=unknown"), /invalid/);
   await assert.rejects(
-    fetchSiteMappingInbox(config, { status: "all", query: "", page: 1, pageSize: 25 }, async () => (
+    fetchSiteMappingInbox(config, actor, { status: "all", query: "", page: 1, pageSize: 25 }, async () => (
       new Response(null, { status: 302, headers: { Location: "https://attacker.example.com" } })
     )),
     /redirects are not allowed/,
   );
 });
 
-test("Configuration Admin preview uses the same private bridge and browser apply stays locked", async () => {
-  const preview = await fetchSiteMappingPreview(config, {
+test("Configuration Admin preview and apply use the private bridge with confirmation", async () => {
+  const preview = await fetchSiteMappingPreview(config, actor, {
     targetNodeId: "project-1",
     changes: [{ siteId: "site-1", expectedVersion: 0 }],
   }, async (_input, init) => {
@@ -99,7 +97,18 @@ test("Configuration Admin preview uses the same private bridge and browser apply
   });
   assert.equal(preview.newAssignments, 1);
 
-  const response = await applyFromBrowser();
-  assert.equal(response.status, 403);
-  assert.deepEqual(await response.json(), { error: "authenticated-administrator-required" });
+  const result = await applySiteMappingChangesFromApi(config, actor, {
+    targetNodeId: "project-1",
+    changes: [{ siteId: "site-1", expectedVersion: 0 }],
+  }, async (_input, init) => {
+    assert.equal(init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(init?.body)), {
+      targetNodeId: "project-1",
+      changes: [{ siteId: "site-1", expectedVersion: 0 }],
+      confirm: true,
+    });
+    assert.equal(new Headers(init?.headers).get("x-configuration-actor"), actor);
+    return Response.json({ status: "applied", siteCount: 1 });
+  });
+  assert.deepEqual(result, { status: "applied", siteCount: 1 });
 });

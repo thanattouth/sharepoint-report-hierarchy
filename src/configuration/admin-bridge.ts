@@ -16,15 +16,18 @@ export type SiteMappingInboxResponse = SiteMappingInboxPage & {
   nodes: SiteMappingNodeOption[];
   capabilities: {
     preview: true;
-    apply: false;
-    applyReason: "authenticated-administrator-required";
+    apply: true;
   };
+};
+
+export type SiteMappingApplyResponse = {
+  status: "applied";
+  siteCount: number;
 };
 
 export type ConfigurationAdminBridgeConfig = {
   baseUrl: string;
   functionKey: string;
-  actor: string;
   timeoutMs: number;
 };
 
@@ -52,8 +55,6 @@ export function loadConfigurationAdminBridgeConfig(
   if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
     throw new Error("CONFIG_ADMIN_API_BASE_URL must not contain credentials, a query, or a fragment");
   }
-  const actor = required(env, "CONFIG_ADMIN_BRIDGE_ACTOR").toLocaleLowerCase();
-  if (!UPN_PATTERN.test(actor)) throw new Error("CONFIG_ADMIN_BRIDGE_ACTOR must be a UPN");
   const timeoutMs = Number(env.CONFIG_ADMIN_API_TIMEOUT_MS ?? "10000");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
     throw new Error("CONFIG_ADMIN_API_TIMEOUT_MS must be an integer from 1000 to 30000");
@@ -61,7 +62,6 @@ export function loadConfigurationAdminBridgeConfig(
   return {
     baseUrl: baseUrl.toString().replace(/\/$/, ""),
     functionKey: required(env, "CONFIG_ADMIN_API_FUNCTION_KEY"),
-    actor,
     timeoutMs,
   };
 }
@@ -96,16 +96,19 @@ function boundedInteger(
 
 async function callConfigurationAdminApi(
   config: ConfigurationAdminBridgeConfig,
+  actor: string,
   path: string,
   init: RequestInit,
   fetchImpl: typeof fetch,
 ) {
+  const normalizedActor = actor.trim().toLocaleLowerCase();
+  if (!UPN_PATTERN.test(normalizedActor)) throw new Error("Authenticated actor must be a UPN");
   const response = await fetchImpl(`${config.baseUrl}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "x-configuration-actor": config.actor,
+      "x-configuration-actor": normalizedActor,
       "x-functions-key": config.functionKey,
     },
     redirect: "manual",
@@ -146,6 +149,7 @@ function isInboxResponse(value: unknown): value is Omit<SiteMappingInboxResponse
 
 export async function fetchSiteMappingInbox(
   config: ConfigurationAdminBridgeConfig,
+  actor: string,
   input: ReturnType<typeof parseSiteMappingInboxQuery>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<SiteMappingInboxResponse> {
@@ -157,6 +161,7 @@ export async function fetchSiteMappingInbox(
   });
   const response = await callConfigurationAdminApi(
     config,
+    actor,
     `/configuration/site-mappings?${params.toString()}`,
     { method: "GET" },
     fetchImpl,
@@ -168,8 +173,7 @@ export async function fetchSiteMappingInbox(
     ...body,
     capabilities: {
       preview: true,
-      apply: false,
-      applyReason: "authenticated-administrator-required",
+      apply: true,
     },
   };
 }
@@ -188,11 +192,13 @@ function isPreview(value: unknown): value is SiteMappingPreview {
 
 export async function fetchSiteMappingPreview(
   config: ConfigurationAdminBridgeConfig,
+  actor: string,
   input: { targetNodeId: string; changes: SiteMappingChange[] },
   fetchImpl: typeof fetch = fetch,
 ): Promise<SiteMappingPreview> {
   const response = await callConfigurationAdminApi(
     config,
+    actor,
     "/configuration/site-mappings/preview",
     { method: "POST", body: JSON.stringify(input) },
     fetchImpl,
@@ -201,5 +207,31 @@ export async function fetchSiteMappingPreview(
   if (!response.ok) throw new Error(`Configuration Admin API returned HTTP ${response.status}`);
   const body: unknown = await response.json();
   if (!isPreview(body)) throw new Error("Configuration Admin API returned an invalid preview");
+  return body;
+}
+
+function isApplyResponse(value: unknown): value is SiteMappingApplyResponse {
+  if (!value || typeof value !== "object") return false;
+  const result = value as Partial<SiteMappingApplyResponse>;
+  return result.status === "applied" && Number.isInteger(result.siteCount) && (result.siteCount ?? -1) >= 0;
+}
+
+export async function applySiteMappingChangesFromApi(
+  config: ConfigurationAdminBridgeConfig,
+  actor: string,
+  input: { targetNodeId: string; changes: SiteMappingChange[] },
+  fetchImpl: typeof fetch = fetch,
+): Promise<SiteMappingApplyResponse> {
+  const response = await callConfigurationAdminApi(
+    config,
+    actor,
+    "/configuration/site-mappings/apply",
+    { method: "POST", body: JSON.stringify({ ...input, confirm: true }) },
+    fetchImpl,
+  );
+  if (response.status === 409) throw new Error("Site mapping changed; refresh and preview again");
+  if (!response.ok) throw new Error(`Configuration Admin API returned HTTP ${response.status}`);
+  const body: unknown = await response.json();
+  if (!isApplyResponse(body)) throw new Error("Configuration Admin API returned an invalid apply result");
   return body;
 }

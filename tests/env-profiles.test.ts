@@ -27,6 +27,9 @@ test("Report and Configuration Admin profiles cannot inherit scanner credentials
   }
   assert.equal(allowedKeysForProfile("p6-report").has("REPORT_API_FUNCTION_KEY"), false);
   assert.equal(allowedKeysForProfile("p7-configuration").has("REPORT_API_FUNCTION_KEY"), false);
+  assert.equal(allowedKeysForProfile("p8-sites").has("SCANNER_CLIENT_SECRET"), false);
+  assert.equal(allowedKeysForProfile("p8-sites").has("ENTRA_AUTH_CLIENT_SECRET"), true);
+  assert.equal(allowedKeysForProfile("p8-sites").has("CONFIG_ADMIN_API_FUNCTION_KEY"), true);
 });
 
 test("env validation detects cross-scope and misspelled managed keys", () => {

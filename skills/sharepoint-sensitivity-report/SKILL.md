@@ -30,6 +30,7 @@ Place the request in one category before editing:
 - **P5 scheduled pilot:** Azure timer/queue operation after the P4 exit gate.
 - **P6 report API:** read-only Azure cache boundary and secure Sites integration.
 - **P7 configuration:** persistent hierarchy, User/Group assignments, canonical Site placements, audit, migration, or admin UX.
+- **P8 web authorization:** single-tenant Entra OIDC, app roles, protected administration, session handling, or verified audit actors.
 
 Keep work inside the current category unless the user explicitly expands scope.
 
@@ -113,8 +114,10 @@ Enforce all of these on every change:
   read/preview smoke checks separate from any apply operation.
 - Keep the Site Mapping Inbox behind a narrow server-side bridge. Validate search, status,
   pagination, node, Site ID, and expected-version inputs; reject redirects; attach the Function key
-  and bounded pilot actor only on the server. Until authenticated Entra claims identify an approved
-  administrator, render Apply as locked and make every browser-triggered apply route fail closed.
+  only on the server. Require a tenant-specific OIDC session with the `ReportAdmin` app role for the
+  page, inbox, preview, and apply routes. Derive the Configuration actor from the verified session
+  UPN, never browser input or a fixed bridge setting. Keep PKCE, state, nonce, exact-origin checks,
+  encrypted HttpOnly cookies, short expiry, optimistic versions, and audit events fail-closed.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through

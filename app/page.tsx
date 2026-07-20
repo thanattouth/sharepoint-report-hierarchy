@@ -1,5 +1,7 @@
 import type { SensitivityInventoryItem } from "@/src/domain/types";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { hasReportAdminRole, readOptionalEntraSession } from "@/src/auth/entra";
 import {
   getDemoOptions,
   getReportMode,
@@ -69,6 +71,9 @@ export default async function Home({
   searchParams?: Promise<RawSearchParams>;
 }) {
   const params = (await searchParams) ?? {};
+  const requestHeaders = await headers();
+  const entraSession = await readOptionalEntraSession(requestHeaders.get("cookie"));
+  const canManageSiteMappings = entraSession ? hasReportAdminRole(entraSession) : false;
   const personas = await getDemoOptions();
   const selectedUser = getSingle(params.user) ?? personas[0].upn;
   const capability = getSingle(params.capability) === "ReportViewer" ? "ReportViewer" : "ReportAdmin";
@@ -147,7 +152,9 @@ export default async function Home({
           <a className="nav-item" href="#sites">Sites</a>
           <a className="nav-item" href="#inventory">File inventory</a>
           <a className="nav-item" href="#scan-status">Scan status</a>
-          <Link className="nav-item" href="/admin/site-mappings">Site mappings</Link>
+          {canManageSiteMappings
+            ? <Link className="nav-item" href="/admin/site-mappings">Site mappings</Link>
+            : <Link className="nav-item" href="/api/auth/entra/login?returnTo=/admin/site-mappings">Admin sign in</Link>}
         </nav>
 
         <div className="topbar-right">

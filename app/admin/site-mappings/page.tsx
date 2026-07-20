@@ -1,7 +1,30 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import {
+  EntraAuthorizationError,
+  requireReportAdmin,
+} from "@/src/auth/entra";
 import { SiteMappingAdminInbox } from "./site-mapping-admin-inbox";
 
-export default function SiteMappingAdminPage() {
+function initials(value: string) {
+  return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase() || "RA";
+}
+
+export default async function SiteMappingAdminPage() {
+  const requestHeaders = await headers();
+  let administrator;
+  try {
+    administrator = await requireReportAdmin(requestHeaders.get("cookie"));
+  } catch (error) {
+    if (error instanceof EntraAuthorizationError && error.status === 401) {
+      redirect("/api/auth/entra/login?returnTo=/admin/site-mappings");
+    }
+    if (error instanceof EntraAuthorizationError && error.status === 403) {
+      redirect(`/auth/denied?reason=${encodeURIComponent(error.code)}`);
+    }
+    throw error;
+  }
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -21,9 +44,10 @@ export default function SiteMappingAdminPage() {
         <div className="topbar-right">
           <span className="admin-boundary-pill"><i aria-hidden="true" /> Admin workspace</span>
           <div className="identity">
-            <span className="avatar">CA</span>
-            <span><strong>Configuration Admin</strong><small>Bounded pilot</small></span>
+            <span className="avatar">{initials(administrator.displayName)}</span>
+            <span><strong>{administrator.displayName}</strong><small>ReportAdmin · Entra verified</small></span>
           </div>
+          <Link className="admin-sign-out" href="/api/auth/entra/logout">Sign out</Link>
         </div>
       </header>
 
@@ -40,7 +64,7 @@ export default function SiteMappingAdminPage() {
           </div>
         </section>
 
-        <SiteMappingAdminInbox />
+        <SiteMappingAdminInbox administratorUpn={administrator.userPrincipalName} />
       </main>
     </div>
   );
