@@ -60,8 +60,19 @@ const functionKey = Object.values(functionKeys as Record<string, unknown>)
 if (!functionKey) throw new Error("Function key is unavailable");
 
 const response = await fetch(
-  `https://${hostname}/api/report?user=${encodeURIComponent(userUpn)}&page=1&pageSize=6`,
-  { headers: { "x-functions-key": functionKey }, redirect: "manual" },
+  `https://${hostname}/api/report?page=1&pageSize=6`,
+  {
+    headers: {
+      "x-functions-key": functionKey,
+      "x-report-user-upn": userUpn,
+      // The legacy pilot assignment is UPN-based. This valid synthetic object ID proves that the
+      // API requires the server identity contract without pretending it is a production principal.
+      "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
+      "x-report-group-object-ids": "",
+      "x-report-capability": "ReportViewer",
+    },
+    redirect: "manual",
+  },
 );
 if (response.status !== 200) throw new Error(`Report API returned HTTP ${response.status}`);
 const result = await response.json() as Record<string, unknown>;

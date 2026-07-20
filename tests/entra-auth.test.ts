@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   EntraAuthorizationError,
   hasReportAdminRole,
+  requireReportViewer,
   requireReportAdmin,
   safeReturnTo,
   sessionFromVerifiedClaims,
@@ -30,6 +31,8 @@ test("Entra auth configuration validates tenant, origins, and a 256-bit session 
   assert.equal(config.sessionSecret.byteLength, 32);
   assert.equal(config.sessionSeconds, 8 * 60 * 60);
   assert.equal(config.allowedOrigins.has("https://report.example.com"), true);
+  assert.equal(config.groupPickerEnabled, false);
+  assert.equal(loadEntraAuthConfig({ ...env, ENTRA_AUTH_GROUP_PICKER_ENABLED: "true" }).groupPickerEnabled, true);
   assert.throws(() => loadEntraAuthConfig({ ...env, ENTRA_AUTH_ALLOWED_ORIGINS: "http://report.example.com" }), /HTTPS/);
   assert.throws(() => loadEntraAuthConfig({ ...env, ENTRA_AUTH_SESSION_SECRET: "c2hvcnQ" }), /32 bytes/);
 });
@@ -49,6 +52,7 @@ test("verified Entra claims bind session to tenant, audience, object ID, and app
   assert.equal(session.userPrincipalName, "thanattouth@m365.co.th");
   assert.equal(hasReportAdminRole(session), true);
   assert.deepEqual(session.groupObjectIds, ["aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"]);
+  assert.equal(session.groupClaimsComplete, true);
   assert.throws(
     () => sessionFromVerifiedClaims({ ...claims, tid: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" }, config),
     (error) => error instanceof EntraAuthorizationError && error.code === "wrong-tenant",
@@ -56,6 +60,27 @@ test("verified Entra claims bind session to tenant, audience, object ID, and app
   assert.throws(
     () => sessionFromVerifiedClaims({ ...claims, aud: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" }, config),
     (error) => error instanceof EntraAuthorizationError && error.code === "wrong-audience",
+  );
+});
+
+test("report access accepts viewer/admin roles and fails closed on group overage", async () => {
+  const config = loadEntraAuthConfig(env);
+  const base: EntraSession = {
+    expiresAt: Date.now() + 60_000,
+    tenantId: config.tenantId,
+    principalObjectId: "a7571cc1-6e86-48c9-a3c7-ced085672e35",
+    userPrincipalName: "viewer@m365.co.th",
+    displayName: "Viewer",
+    roles: ["ReportViewer"],
+    groupObjectIds: [],
+    groupClaimsComplete: true,
+  };
+  const viewer = await sealProtectedCookie(base, config, "session");
+  assert.equal((await requireReportViewer(`${ENTRA_SESSION_COOKIE}=${viewer}`, env)).userPrincipalName, base.userPrincipalName);
+  const overage = await sealProtectedCookie({ ...base, groupClaimsComplete: false }, config, "session");
+  await assert.rejects(
+    requireReportViewer(`${ENTRA_SESSION_COOKIE}=${overage}`, env),
+    (error) => error instanceof EntraAuthorizationError && error.code === "group-claim-overage",
   );
 });
 
@@ -69,6 +94,7 @@ test("Entra session cookie is confidential, tamper-evident, expiring, and role-g
     displayName: "Thanattouth",
     roles: ["ReportAdmin"],
     groupObjectIds: [],
+    groupClaimsComplete: true,
   };
   const sealed = await sealProtectedCookie(session, config, "session");
   assert.doesNotMatch(sealed, /thanattouth|ReportAdmin/i);

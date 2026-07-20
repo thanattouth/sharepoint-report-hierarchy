@@ -19,9 +19,16 @@ test("report API fixes capability and scenario while validating filters", () => 
   const config = loadReportApiConfig({
     REPORT_PILOT_ALLOWED_UPNS: "nipaporn@contoso.com,prach@contoso.com",
   });
+  const headers = new Headers({
+    "x-report-user-upn": "Nipaporn@contoso.com",
+    "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
+    "x-report-group-object-ids": "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE",
+    "x-report-capability": "ReportViewer",
+  });
   const request = parseReportApiRequest(
-    "https://localhost/api/report?user=Nipaporn%40contoso.com&site=site-1&page=2&pageSize=20",
+    "https://localhost/api/report?site=site-1&page=2&pageSize=20",
     config,
+    headers,
   );
   assert.equal(request.userUpn, "nipaporn@contoso.com");
   assert.equal(request.capability, "ReportViewer");
@@ -33,6 +40,7 @@ test("report API fixes capability and scenario while validating filters", () => 
     () => parseReportApiRequest(
       "https://localhost/api/report?user=outside%40contoso.com",
       config,
+      new Headers({ ...Object.fromEntries(headers), "x-report-user-upn": "outside@contoso.com" }),
     ),
     ReportApiRequestError,
   );
@@ -40,6 +48,7 @@ test("report API fixes capability and scenario while validating filters", () => 
     () => parseReportApiRequest(
       "https://localhost/api/report?user=nipaporn%40contoso.com&status=made-up",
       config,
+      headers,
     ),
     /status is invalid/,
   );

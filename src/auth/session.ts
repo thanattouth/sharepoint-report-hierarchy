@@ -2,6 +2,7 @@ import type { EntraAuthConfig } from "./entra-config";
 
 export const ENTRA_SESSION_COOKIE = "sp-sens-entra-session";
 export const ENTRA_FLOW_COOKIE = "sp-sens-entra-flow";
+export const ENTRA_GRAPH_COOKIE = "sp-sens-entra-graph";
 
 type ExpiringPayload = { expiresAt: number };
 
@@ -35,7 +36,7 @@ async function encryptionKey(config: EntraAuthConfig) {
 export async function sealProtectedCookie<T extends ExpiringPayload>(
   payload: T,
   config: EntraAuthConfig,
-  purpose: "flow" | "session",
+  purpose: "flow" | "session" | "graph",
 ) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({
@@ -52,7 +53,7 @@ export async function sealProtectedCookie<T extends ExpiringPayload>(
 export async function openProtectedCookie<T extends ExpiringPayload>(
   value: string,
   config: EntraAuthConfig,
-  purpose: "flow" | "session",
+  purpose: "flow" | "session" | "graph",
   now = Date.now(),
 ): Promise<T> {
   try {

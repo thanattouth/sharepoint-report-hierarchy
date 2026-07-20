@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { AppCapability, ScanStatus } from "../domain/types";
+import type { GovernancePrincipalContext } from "../domain/types";
 import { demoPersonas } from "../fixtures/data";
 import {
   loadReportApiConfig,
@@ -19,6 +20,7 @@ import {
 import { loadReportSource } from "./report-source";
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;
+export type AuthenticatedReportIdentity = GovernancePrincipalContext & { capability: AppCapability };
 
 function single(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -57,16 +59,24 @@ export function parseReportRequest(
   };
 }
 
-export async function loadReportPage(params: RawSearchParams): Promise<ReportData> {
+export async function loadReportPage(
+  params: RawSearchParams,
+  identity?: AuthenticatedReportIdentity,
+): Promise<ReportData> {
   const cacheConfig = loadReportCacheConfig(process.env);
-  const defaultUserUpn = cacheConfig.mode === "azure-api"
-    ? [...loadReportApiConfig(process.env).allowedPilotUpns][0]
-    : undefined;
+  const defaultUserUpn = cacheConfig.mode === "azure-api" ? identity?.userUpn : undefined;
   const parsed = parseReportRequest(params, defaultUserUpn);
   if (cacheConfig.mode === "azure-api") {
+    if (!identity) throw new ReportAuthorizationError("An authenticated Entra identity is required");
     return fetchReportFromApi(
       cacheConfig,
-      { ...parsed, capability: "ReportViewer", scenario: "current" },
+      {
+        ...parsed,
+        userUpn: identity.userUpn,
+        principalContext: identity,
+        capability: identity.capability,
+        scenario: "current",
+      },
     );
   }
   const request: ReportRequest = cacheConfig.mode === "azure-table"

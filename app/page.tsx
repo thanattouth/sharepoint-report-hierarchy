@@ -1,7 +1,13 @@
 import type { SensitivityInventoryItem } from "@/src/domain/types";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { hasReportAdminRole, readOptionalEntraSession } from "@/src/auth/entra";
+import { redirect } from "next/navigation";
+import {
+  EntraAuthorizationError,
+  hasReportAdminRole,
+  readOptionalEntraSession,
+  requireReportViewer,
+} from "@/src/auth/entra";
 import {
   getDemoOptions,
   getReportMode,
@@ -70,21 +76,51 @@ export default async function Home({
 }: {
   searchParams?: Promise<RawSearchParams>;
 }) {
-  const params = (await searchParams) ?? {};
+  const rawParams = (await searchParams) ?? {};
   const requestHeaders = await headers();
-  const entraSession = await readOptionalEntraSession(requestHeaders.get("cookie"));
+  const cookieHeader = requestHeaders.get("cookie");
+  const reportMode = getReportMode();
+  let entraSession = await readOptionalEntraSession(cookieHeader);
+  if (reportMode === "azure-api") {
+    try {
+      entraSession = await requireReportViewer(cookieHeader);
+    } catch (error) {
+      if (error instanceof EntraAuthorizationError && error.status === 401) {
+        redirect("/api/auth/entra/login?returnTo=/");
+      }
+      if (error instanceof EntraAuthorizationError) {
+        redirect(`/auth/denied?reason=${encodeURIComponent(error.code)}`);
+      }
+      throw error;
+    }
+  }
+  const params = reportMode === "azure-api"
+    ? Object.fromEntries(Object.entries(rawParams).filter(([name]) => !["user", "capability", "scenario"].includes(name)))
+    : rawParams;
   const canManageSiteMappings = entraSession ? hasReportAdminRole(entraSession) : false;
-  const personas = await getDemoOptions();
-  const selectedUser = getSingle(params.user) ?? personas[0].upn;
-  const capability = getSingle(params.capability) === "ReportViewer" ? "ReportViewer" : "ReportAdmin";
+  const personas = reportMode === "azure-api" ? [] : await getDemoOptions();
+  const selectedUser = reportMode === "azure-api"
+    ? entraSession!.userPrincipalName
+    : getSingle(params.user) ?? personas[0].upn;
+  const capability = reportMode === "azure-api"
+    ? (hasReportAdminRole(entraSession!) ? "ReportAdmin" : "ReportViewer")
+    : getSingle(params.capability) === "ReportViewer" ? "ReportViewer" : "ReportAdmin";
   const scenario = getSingle(params.scenario) ?? "current";
-  const persona = personas.find((candidate) => candidate.upn === selectedUser) ?? personas[0];
-  let reportMode: "fixture" | "azure-api" | "azure-table" = "fixture";
+  const persona = reportMode === "azure-api" ? {
+    upn: entraSession!.userPrincipalName,
+    name: entraSession!.displayName,
+    initials: entraSession!.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((value) => value[0]).join("").toLocaleUpperCase() || "U",
+    role: capability,
+  } : personas.find((candidate) => candidate.upn === selectedUser) ?? personas[0];
   let report = null;
   let loadError: "denied" | "cache" | null = null;
   try {
-    reportMode = getReportMode();
-    report = await loadReportPage(params);
+    report = await loadReportPage(params, reportMode === "azure-api" ? {
+      userUpn: entraSession!.userPrincipalName,
+      userObjectId: entraSession!.principalObjectId,
+      groupObjectIds: entraSession!.groupObjectIds,
+      capability,
+    } : undefined);
   } catch (error) {
     console.error({
       event: "report-page-load-failed",
@@ -94,9 +130,9 @@ export default async function Home({
     loadError = error instanceof ReportAuthorizationError ? "denied" : "cache";
   }
 
-  const preserved = {
+  const preserved = reportMode === "azure-api" ? {} : {
     user: selectedUser,
-    capability: reportMode === "azure-api" ? "ReportViewer" : capability,
+    capability,
     scenario: reportMode === "fixture" ? scenario : "current",
   };
   const exportParams = new URLSearchParams();
@@ -104,8 +140,10 @@ export default async function Home({
     const value = getSingle(raw);
     if (value && key !== "page") exportParams.set(key, value);
   }
-  exportParams.set("user", selectedUser);
-  exportParams.set("capability", capability);
+  if (reportMode !== "azure-api") {
+    exportParams.set("user", selectedUser);
+    exportParams.set("capability", capability);
+  }
 
   const hierarchy = report?.hierarchyRollups ?? [];
   const hierarchyById = new Map(hierarchy.map((node) => [node.nodeId, node]));
@@ -187,10 +225,10 @@ export default async function Home({
             </div>
           </section>
 
-          <section className="demo-panel" aria-labelledby="demo-heading">
+          {reportMode !== "azure-api" ? <section className="demo-panel" aria-labelledby="demo-heading">
             <div className="demo-copy">
               <span className="demo-dot" aria-hidden="true" />
-              <div><strong id="demo-heading">{reportMode === "azure-api" ? "Azure report API pilot" : reportMode === "azure-table" ? "Azure cache pilot" : "Deterministic demo mode"}</strong><small>{reportMode === "azure-api" ? "หน้าเว็บอ่าน scheduled cache ผ่าน read-only server boundary · persona ใช้พิสูจน์ hierarchy เท่านั้น" : reportMode === "azure-table" ? "ข้อมูลไฟล์มาจาก scheduled Azure Table cache · persona ยังใช้พิสูจน์ hierarchy scope" : "สลับ persona และ scan state เพื่อทดสอบ authorization"}</small></div>
+              <div><strong id="demo-heading">{reportMode === "azure-table" ? "Azure cache pilot" : "Deterministic demo mode"}</strong><small>{reportMode === "azure-table" ? "ข้อมูลไฟล์มาจาก scheduled Azure Table cache · persona ยังใช้พิสูจน์ hierarchy scope" : "สลับ persona และ scan state เพื่อทดสอบ authorization"}</small></div>
             </div>
             <form className="demo-controls" method="get">
               <label>UPN
@@ -198,12 +236,12 @@ export default async function Home({
                   {personas.map((item) => <option key={item.upn} value={item.upn}>{item.name} — {item.role}</option>)}
                 </select>
               </label>
-              {reportMode === "azure-api" ? <input type="hidden" name="capability" value="ReportViewer" /> : <label>App role
+              <label>App role
                 <select name="capability" defaultValue={capability}>
                   <option value="ReportAdmin">ReportAdmin</option>
                   <option value="ReportViewer">ReportViewer</option>
                 </select>
-              </label>}
+              </label>
               {reportMode === "fixture" ? <label>Scan state
                 <select name="scenario" defaultValue={scenario}>
                   <option value="current">Current</option>
@@ -215,7 +253,7 @@ export default async function Home({
               </label> : <input type="hidden" name="scenario" value="current" />}
               <button className="button button-demo" type="submit">Apply persona</button>
             </form>
-          </section>
+          </section> : null}
 
           {loadError ? (
             <section className="empty-state critical" role="alert">

@@ -11,6 +11,7 @@ import type {
   ScopeAssignmentChange,
 } from "@/src/configuration/business-scope";
 import type { BusinessRole, GovernancePrincipalType, HierarchyNodeType } from "@/src/domain/types";
+import type { EntraSecurityGroup } from "@/src/auth/entra-groups";
 
 type Tab = "structure" | "assignments" | "audit";
 const nodeTypes: HierarchyNodeType[] = ["EVP", "Department", "Group", "Project"];
@@ -272,11 +273,41 @@ function NodeEditor({ change, nodes, onChange }: { change: BusinessNodeChange; n
 }
 
 function AssignmentEditor({ change, nodes, onChange }: { change: ScopeAssignmentChange; nodes: BusinessScopeNodeRow[]; onChange: (value: ScopeAssignmentChange) => void }) {
+  const [groupQuery, setGroupQuery] = useState("");
+  const [groupResults, setGroupResults] = useState<EntraSecurityGroup[]>([]);
+  const [groupSearchState, setGroupSearchState] = useState<"idle" | "searching" | "error">("idle");
+
+  async function searchGroups() {
+    if (groupQuery.trim().length < 2) return;
+    setGroupSearchState("searching");
+    setGroupResults([]);
+    try {
+      const response = await fetch(`/api/directory/groups?q=${encodeURIComponent(groupQuery.trim())}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("group-search-unavailable");
+      const body = await response.json() as { groups?: EntraSecurityGroup[] };
+      setGroupResults(Array.isArray(body.groups) ? body.groups : []);
+      setGroupSearchState("idle");
+    } catch {
+      setGroupSearchState("error");
+    }
+  }
+
   return <div className="scope-editor-form">
-    <label>Principal type<select value={change.principalType} onChange={(event) => onChange({ ...change, principalType: event.target.value as GovernancePrincipalType })}><option>User</option><option>Group</option></select></label>
-    <label>Display name<input value={change.principalDisplayName ?? ""} onChange={(event) => onChange({ ...change, principalDisplayName: event.target.value })} placeholder="ชื่อสำหรับค้นหาและแสดงผล" /></label>
-    <label>Entra object ID<input value={change.principalObjectId ?? ""} onChange={(event) => onChange({ ...change, principalObjectId: event.target.value })} placeholder="00000000-0000-0000-0000-000000000000" /><small>{change.principalType === "Group" ? "Required for Group" : "Recommended immutable identity"}</small></label>
-    {change.principalType === "User" ? <label>User principal name<input type="email" value={change.userUpn ?? ""} onChange={(event) => onChange({ ...change, userUpn: event.target.value })} placeholder="user@customer.com" /><small>Pilot fallback หากยังไม่มี object ID</small></label> : null}
+    <label>Principal type<select value={change.principalType} onChange={(event) => onChange({ ...change, principalType: event.target.value as GovernancePrincipalType, principalObjectId: undefined, principalDisplayName: undefined, userUpn: undefined })}><option>User</option><option>Group</option></select></label>
+    {change.principalType === "Group" ? <section className="entra-group-picker" aria-label="Entra security group picker">
+      <div className="entra-group-picker-heading"><strong>Entra security group</strong><small>ค้นหาจาก Entra แล้วระบบจะเก็บ immutable Object ID</small></div>
+      {change.principalObjectId ? <div className="entra-group-selection"><span>G</span><div><strong>{change.principalDisplayName ?? "Selected security group"}</strong><code>{change.principalObjectId}</code></div><button type="button" onClick={() => onChange({ ...change, principalObjectId: undefined, principalDisplayName: undefined })}>Change</button></div> : <>
+        <div className="entra-group-search"><input type="search" value={groupQuery} onChange={(event) => setGroupQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchGroups(); } }} placeholder="เช่น EVP-A หรือ Department 1-A" /><button type="button" disabled={groupSearchState === "searching" || groupQuery.trim().length < 2} onClick={() => void searchGroups()}>{groupSearchState === "searching" ? "Searching…" : "Search"}</button></div>
+        {groupSearchState === "error" ? <p className="entra-group-error">Group Picker ยังไม่พร้อมหรือ session ไม่มี Graph consent กรุณา sign in ใหม่หลังเปิด permission</p> : null}
+        {groupResults.length ? <div className="entra-group-results">{groupResults.map((group) => <button key={group.id} type="button" onClick={() => { onChange({ ...change, principalObjectId: group.id, principalDisplayName: group.displayName }); setGroupResults([]); }}><span>G</span><span><strong>{group.displayName}</strong><small>{group.mail ?? "Security group"}</small></span></button>)}</div> : null}
+      </>}
+    </section> : <>
+      <label>Display name<input value={change.principalDisplayName ?? ""} onChange={(event) => onChange({ ...change, principalDisplayName: event.target.value })} placeholder="ชื่อสำหรับค้นหาและแสดงผล" /></label>
+      <label>Entra object ID<input value={change.principalObjectId ?? ""} onChange={(event) => onChange({ ...change, principalObjectId: event.target.value })} placeholder="00000000-0000-0000-0000-000000000000" /><small>Recommended immutable identity</small></label>
+      <label>User principal name<input type="email" value={change.userUpn ?? ""} onChange={(event) => onChange({ ...change, userUpn: event.target.value })} placeholder="user@customer.com" /><small>Pilot fallback หากยังไม่มี object ID</small></label>
+    </>}
     <label>Business node<select value={change.nodeId} onChange={(event) => onChange({ ...change, nodeId: event.target.value })}><option value="">Select node</option>{nodes.filter((node) => node.active).map((node) => <option key={node.id} value={node.id}>{node.breadcrumb} · {node.type}</option>)}</select></label>
     <label>Business role<select value={change.businessRole} onChange={(event) => onChange({ ...change, businessRole: event.target.value as BusinessRole })}>{roles.map((role) => <option key={role}>{role}</option>)}</select></label>
     <label className="scope-switch"><input type="checkbox" checked={change.includeDescendants} onChange={(event) => onChange({ ...change, includeDescendants: event.target.checked })} /><span><strong>Include descendants</strong><small>เห็นทุก active node และ mapped Site ใต้ branch นี้</small></span></label>

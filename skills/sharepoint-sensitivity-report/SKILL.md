@@ -345,6 +345,26 @@ For this repository's hosted cross-tenant pilot:
 
 ## Handoff
 
+### Entra-backed report visibility and group picker
+
+- In Azure API mode, require a verified Entra session containing `ReportViewer` or `ReportAdmin`.
+  Remove persona, capability, and scenario selectors; ignore those URL parameters server-side.
+- Build report principal context from verified UPN, user object ID, and group object IDs. Resolve
+  active assignments and descendants before any cached inventory read. App role is capability,
+  never business data scope.
+- Keep browser-to-report traffic behind a server bridge. Do not expose Function keys or trust
+  identity headers sent directly by the browser. Retain a bounded pilot user allowlist until the
+  Report API has workload-identity caller authorization.
+- Prefer `ApplicationGroup` claims so tokens include only groups assigned to the enterprise app.
+  Treat `hasgroups` or `_claim_names.groups` as overage and fail closed; do not interpret an omitted
+  group list as proof that the user has no group assignments.
+- For Scope Assignment UX, search Entra security groups through a ReportAdmin-only server endpoint
+  with delegated `GroupMember.Read.All`. Keep its short-lived access token in a separate encrypted
+  HttpOnly cookie and never return it to client JavaScript. Persist immutable Object ID plus a
+  display label; Entra remains the membership source of truth.
+- Keep the Group Picker feature disabled until admin consent is explicitly approved and completed.
+  Disabling the picker must not invalidate already-persisted group assignments.
+
 Report:
 
 - Milestone/category completed.

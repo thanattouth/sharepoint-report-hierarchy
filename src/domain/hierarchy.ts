@@ -139,7 +139,7 @@ export function resolveHierarchyScope(
   const context: GovernancePrincipalContext = typeof principal === "string"
     ? { userUpn: principal }
     : principal;
-  const groupObjectIds = new Set(context.groupObjectIds ?? []);
+  const groupObjectIds = new Set((context.groupObjectIds ?? []).map((id) => id.toLocaleLowerCase()));
   const activeAssignments = assignments.filter(
     (assignment) =>
       assignment.active &&
@@ -181,10 +181,10 @@ function assignmentMatchesPrincipal(
   groupObjectIds: Set<string>,
 ): boolean {
   if ((assignment.principalType ?? "User") === "Group") {
-    return Boolean(assignment.principalObjectId && groupObjectIds.has(assignment.principalObjectId));
+    return Boolean(assignment.principalObjectId && groupObjectIds.has(assignment.principalObjectId.toLocaleLowerCase()));
   }
   if (assignment.principalObjectId && context.userObjectId) {
-    return assignment.principalObjectId === context.userObjectId;
+    return assignment.principalObjectId.toLocaleLowerCase() === context.userObjectId.toLocaleLowerCase();
   }
   return Boolean(assignment.userUpn
     && assignment.userUpn.toLowerCase() === context.userUpn.toLowerCase());

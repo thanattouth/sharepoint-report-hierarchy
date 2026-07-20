@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       headers: { Location: authorization.returnUrl.toString() },
     });
     response.headers.append("Set-Cookie", authorization.cookie);
+    if (authorization.graphCookie) response.headers.append("Set-Cookie", authorization.graphCookie);
     response.headers.append("Set-Cookie", clearCookie(ENTRA_FLOW_COOKIE, secure));
     response.headers.set("Cache-Control", "no-store");
     return response;

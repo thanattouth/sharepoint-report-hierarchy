@@ -108,7 +108,7 @@ test("server-renders an Entra authorization denial state without sensitive confi
   const response = await render("/auth/denied?reason=report-admin-role-required");
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.match(html, /ไม่มีสิทธิ์เข้า Admin workspace/);
+  assert.match(html, /ไม่มีสิทธิ์เข้าถึงพื้นที่นี้/);
   assert.match(html, /ReportAdmin/);
   assert.doesNotMatch(html, /CONFIG_ADMIN_API_FUNCTION_KEY|x-functions-key|client-secret|session-secret/);
 });

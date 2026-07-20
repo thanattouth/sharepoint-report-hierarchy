@@ -5,6 +5,7 @@ export type EntraAuthConfig = {
   sessionSecret: Uint8Array;
   allowedOrigins: ReadonlySet<string>;
   sessionSeconds: number;
+  groupPickerEnabled: boolean;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -61,6 +62,10 @@ export function loadEntraAuthConfig(
   if (!Number.isInteger(sessionHours) || sessionHours < 1 || sessionHours > 24) {
     throw new Error("ENTRA_AUTH_SESSION_HOURS must be an integer from 1 to 24");
   }
+  const groupPickerEnabled = (env.ENTRA_AUTH_GROUP_PICKER_ENABLED ?? "false").trim().toLocaleLowerCase();
+  if (!["true", "false"].includes(groupPickerEnabled)) {
+    throw new Error("ENTRA_AUTH_GROUP_PICKER_ENABLED must be true or false");
+  }
   return {
     tenantId: tenantId.toLocaleLowerCase(),
     clientId: clientId.toLocaleLowerCase(),
@@ -68,6 +73,7 @@ export function loadEntraAuthConfig(
     sessionSecret,
     allowedOrigins: parseAllowedOrigins(required(env, "ENTRA_AUTH_ALLOWED_ORIGINS")),
     sessionSeconds: sessionHours * 60 * 60,
+    groupPickerEnabled: groupPickerEnabled === "true",
   };
 }
 

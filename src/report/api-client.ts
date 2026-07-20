@@ -9,12 +9,12 @@ function setOptional(params: URLSearchParams, name: string, value?: string | num
   if (value !== undefined && value !== "") params.set(name, String(value));
 }
 
-function isReportData(value: unknown, expectedUpn: string): value is ReportData {
+function isReportData(value: unknown, expectedUpn: string, expectedCapability: ReportRequest["capability"]): value is ReportData {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ReportData>;
   const options = candidate.options as Partial<ReportData["options"]> | undefined;
   return candidate.userUpn === expectedUpn
-    && candidate.capability === "ReportViewer"
+    && candidate.capability === expectedCapability
     && ["ready", "no-assignment", "no-sites", "no-scan", "zero-sensitive"].includes(
       candidate.state ?? "",
     )
@@ -36,7 +36,6 @@ export async function fetchReportFromApi(
 ): Promise<ReportData> {
   const url = new URL(`${config.baseUrl}/report`);
   const params = url.searchParams;
-  params.set("user", request.userUpn);
   setOptional(params, "node", request.filters.nodeId);
   setOptional(params, "site", request.filters.siteId);
   setOptional(params, "library", request.filters.library);
@@ -52,6 +51,10 @@ export async function fetchReportFromApi(
     headers: {
       Accept: "application/json",
       "x-functions-key": config.functionKey,
+      "x-report-user-upn": request.userUpn,
+      "x-report-user-object-id": request.principalContext?.userObjectId ?? "",
+      "x-report-group-object-ids": (request.principalContext?.groupObjectIds ?? []).join(","),
+      "x-report-capability": request.capability,
     },
     // Workerd does not implement redirect="error". Manual mode preserves the
     // same security boundary: the Function key is never forwarded to another
@@ -67,7 +70,7 @@ export async function fetchReportFromApi(
   }
   if (!response.ok) throw new Error(`Report API returned HTTP ${response.status}`);
   const body: unknown = await response.json();
-  if (!isReportData(body, request.userUpn)) {
+  if (!isReportData(body, request.userUpn, request.capability)) {
     throw new Error("Report API returned an invalid response");
   }
   return body;

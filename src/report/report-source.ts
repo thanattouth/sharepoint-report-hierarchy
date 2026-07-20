@@ -90,7 +90,7 @@ export async function loadReportSource(
     }];
   }
   const scope = resolveHierarchyScope(
-    request.userUpn,
+    request.principalContext ?? request.userUpn,
     nodes,
     assignments,
     sites,

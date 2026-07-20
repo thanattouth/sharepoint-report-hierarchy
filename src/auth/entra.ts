@@ -2,6 +2,7 @@ import * as oidc from "openid-client";
 import { loadEntraAuthConfig, resolveAllowedRequestOrigin, type EntraAuthConfig } from "./entra-config";
 import {
   ENTRA_FLOW_COOKIE,
+  ENTRA_GRAPH_COOKIE,
   ENTRA_SESSION_COOKIE,
   openProtectedCookie,
   readCookie,
@@ -20,6 +21,12 @@ export type EntraSession = {
   displayName: string;
   roles: string[];
   groupObjectIds: string[];
+  groupClaimsComplete: boolean;
+};
+
+export type EntraGraphCredential = {
+  expiresAt: number;
+  accessToken: string;
 };
 
 export type EntraAuthorizationFlow = {
@@ -65,6 +72,12 @@ function singleString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function hasGroupOverage(claims: Record<string, unknown>) {
+  if (claims.hasgroups === true) return true;
+  const claimNames = claims._claim_names;
+  return Boolean(claimNames && typeof claimNames === "object" && "groups" in claimNames);
+}
+
 export function sessionFromVerifiedClaims(
   claims: Record<string, unknown>,
   config: EntraAuthConfig,
@@ -90,11 +103,16 @@ export function sessionFromVerifiedClaims(
     displayName: singleString(claims.name) || userPrincipalName,
     roles: strings(claims.roles),
     groupObjectIds: strings(claims.groups).map((item) => item.toLocaleLowerCase()),
+    groupClaimsComplete: !hasGroupOverage(claims),
   };
 }
 
 export function hasReportAdminRole(session: EntraSession) {
   return session.roles.includes(REPORT_ADMIN_ROLE);
+}
+
+export function hasReportViewerRole(session: EntraSession) {
+  return hasReportAdminRole(session) || session.roles.includes(REPORT_VIEWER_ROLE);
 }
 
 export function safeReturnTo(value: string | null | undefined) {
@@ -122,7 +140,9 @@ export async function createEntraAuthorizationRequest(
   const authorizationUrl = oidc.buildAuthorizationUrl(await getOidcConfiguration(config), {
     redirect_uri: `${origin}/api/auth/entra/callback`,
     response_type: "code",
-    scope: "openid profile email",
+    scope: config.groupPickerEnabled
+      ? "openid profile email https://graph.microsoft.com/GroupMember.Read.All"
+      : "openid profile email",
     code_challenge: await oidc.calculatePKCECodeChallenge(verifier),
     code_challenge_method: "S256",
     state,
@@ -166,6 +186,20 @@ export async function completeEntraAuthorizationRequest(
   if (!claims) throw new EntraAuthorizationError(401, "missing-id-token");
   const session = sessionFromVerifiedClaims(claims as Record<string, unknown>, config);
   const protectedSession = await sealProtectedCookie(session, config, "session");
+  let graphCookie: string | undefined;
+  if (config.groupPickerEnabled) {
+    if (!tokens.access_token) throw new EntraAuthorizationError(401, "missing-graph-access-token");
+    const tokenSeconds = Math.min(Number(tokens.expires_in ?? 3600), config.sessionSeconds);
+    const credential: EntraGraphCredential = {
+      expiresAt: Date.now() + tokenSeconds * 1000,
+      accessToken: tokens.access_token,
+    };
+    graphCookie = serializeCookie(
+      ENTRA_GRAPH_COOKIE,
+      await sealProtectedCookie(credential, config, "graph"),
+      { maxAge: tokenSeconds, secure: origin.startsWith("https://") },
+    );
+  }
   return {
     returnUrl: new URL(flow.returnTo, origin),
     session,
@@ -173,7 +207,23 @@ export async function completeEntraAuthorizationRequest(
       maxAge: config.sessionSeconds,
       secure: origin.startsWith("https://"),
     }),
+    graphCookie,
   };
+}
+
+export async function readEntraGraphCredential(
+  cookieHeader: string | null,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const config = loadEntraAuthConfig(env);
+  if (!config.groupPickerEnabled) return null;
+  const value = readCookie(cookieHeader, ENTRA_GRAPH_COOKIE);
+  if (!value) return null;
+  try {
+    return await openProtectedCookie<EntraGraphCredential>(value, config, "graph");
+  } catch {
+    return null;
+  }
 }
 
 export async function readEntraSession(
@@ -198,6 +248,21 @@ export async function requireReportAdmin(
   if (!session) throw new EntraAuthorizationError(401, "entra-sign-in-required");
   if (!hasReportAdminRole(session)) {
     throw new EntraAuthorizationError(403, "report-admin-role-required");
+  }
+  return session;
+}
+
+export async function requireReportViewer(
+  cookieHeader: string | null,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const session = await readEntraSession(cookieHeader, env);
+  if (!session) throw new EntraAuthorizationError(401, "entra-sign-in-required");
+  if (!hasReportViewerRole(session)) {
+    throw new EntraAuthorizationError(403, "report-viewer-role-required");
+  }
+  if (!session.groupClaimsComplete) {
+    throw new EntraAuthorizationError(403, "group-claim-overage");
   }
   return session;
 }

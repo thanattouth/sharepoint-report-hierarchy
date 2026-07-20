@@ -28,6 +28,8 @@ environment variables:
 - `ENTRA_AUTH_SESSION_SECRET` — secret, 32 random bytes encoded as base64url
 - `ENTRA_AUTH_ALLOWED_ORIGINS` — exact comma-separated origins
 - `ENTRA_AUTH_SESSION_HOURS` — 1–24, default 8
+- `ENTRA_AUTH_GROUP_PICKER_ENABLED` — default `false`; enable only after delegated
+  `GroupMember.Read.All` admin consent
 
 `CONFIG_ADMIN_API_FUNCTION_KEY` remains a separate Sites secret. There is no
 `CONFIG_ADMIN_BRIDGE_ACTOR`; the server derives the actor from verified Entra claims.
@@ -64,12 +66,19 @@ The inbox and preview are also protected, not only Apply. A user without a valid
 Do not use an Azure CLI token, a selectable persona, a browser-supplied UPN, or the Sites owner
 identity as a substitute for the Entra application session.
 
-## Current boundary and next slice
+## Report identity and group assignments
 
-P8 makes the Site Mapping Admin Inbox visibility and Apply path production-shaped. The main report
-still uses the bounded pilot persona/report-API contract to prove business hierarchy. Replacing
-that selector with the signed-in Entra object ID, UPN, and group IDs is the next authorization
-slice; do not claim production report-user visibility until it is complete.
+In Azure API mode the main report requires a verified `ReportViewer` or `ReportAdmin` session and
+removes the persona/capability controls. The Sites bridge sends verified UPN, user object ID, group
+object IDs, and app role to the Report API; URL identity parameters are ignored. Scope remains the
+union of active assignments and descendants, never the user's SharePoint ownership or tenant-wide
+visibility.
+
+The Business Scope editor can search Entra security groups through a ReportAdmin-only server route.
+The delegated Graph token stays in an encrypted HttpOnly cookie and Graph results expose only group
+ID, display name, and optional mail. Configure the token claim as `ApplicationGroup`; group overage
+fails closed. The picker feature flag stays off until the required delegated Graph permission has
+tenant admin consent.
 
 ## Resetting test Site placements
 

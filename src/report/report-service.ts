@@ -5,6 +5,7 @@ import type {
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  GovernancePrincipalContext,
   ScanStatus,
   SensitivityInventoryItem,
   SensitivityScanRun,
@@ -33,6 +34,7 @@ export type ReportFilters = {
 
 export type ReportRequest = {
   userUpn: string;
+  principalContext?: GovernancePrincipalContext;
   capability: AppCapability;
   scenario: DemoScenario;
   filters: ReportFilters;
@@ -129,7 +131,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   }
 
   const scope = resolveHierarchyScope(
-    request.userUpn,
+    request.principalContext ?? request.userUpn,
     source.nodes,
     source.assignments,
     source.sites,

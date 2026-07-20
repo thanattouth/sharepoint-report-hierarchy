@@ -36,7 +36,7 @@ export async function reportHandler(
     if (cacheConfig.mode !== "azure-table") {
       throw new Error("The report API requires Azure Table cache mode");
     }
-    const reportRequest = parseReportApiRequest(request.url, apiConfig);
+    const reportRequest = parseReportApiRequest(request.url, apiConfig, request.headers);
     const report = buildReport(
       await loadReportSource(reportRequest, cacheConfig),
       reportRequest,

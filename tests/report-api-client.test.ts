@@ -5,6 +5,11 @@ import type { ReportData, ReportRequest } from "../src/report/report-service";
 
 const request: ReportRequest = {
   userUpn: "nipaporn@contoso.com",
+  principalContext: {
+    userUpn: "nipaporn@contoso.com",
+    userObjectId: "11111111-2222-4333-8444-555555555555",
+    groupObjectIds: ["aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"],
+  },
   capability: "ReportViewer",
   scenario: "current",
   filters: { siteId: "site-1", page: 2, pageSize: 25 },
@@ -25,6 +30,7 @@ const body = {
 test("Sites API client keeps the function key in a server-side header", async () => {
   let requestedUrl = "";
   let requestedKey: string | null = null;
+  let requestedIdentity: string | null = null;
   let redirectMode: RequestRedirect | undefined;
   const report = await fetchReportFromApi(
     {
@@ -37,15 +43,17 @@ test("Sites API client keeps the function key in a server-side header", async ()
     async (input, init) => {
       requestedUrl = input.toString();
       requestedKey = new Headers(init?.headers).get("x-functions-key");
+      requestedIdentity = new Headers(init?.headers).get("x-report-user-object-id");
       redirectMode = init?.redirect;
       return Response.json(body);
     },
   );
   assert.equal(report.scopeSensitiveCount, 12);
-  assert.match(requestedUrl, /user=nipaporn%40contoso.com/);
+  assert.doesNotMatch(requestedUrl, /user=/);
   assert.match(requestedUrl, /site=site-1/);
   assert.doesNotMatch(requestedUrl, /server-secret/);
   assert.equal(requestedKey, "server-secret");
+  assert.equal(requestedIdentity, "11111111-2222-4333-8444-555555555555");
   assert.equal(redirectMode, "manual");
 });
 
