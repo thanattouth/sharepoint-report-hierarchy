@@ -72,18 +72,47 @@ export const hierarchyNodes: GovernanceHierarchyNode[] = [
     active: true,
   },
   {
-    id: "project-supply",
+    id: "group-supply",
     parentId: "dept-operations",
+    type: "Group",
+    name: "Supply Operations",
+    active: true,
+  },
+  {
+    id: "project-supply",
+    parentId: "group-supply",
     type: "Project",
     name: "Supply Excellence",
     active: true,
   },
   {
     id: "project-archived",
-    parentId: "dept-operations",
+    parentId: "group-supply",
     type: "Project",
     name: "Archived Transformation",
     active: false,
+  },
+  { id: "evp-digital", type: "EVP", name: "Digital Ventures", active: true },
+  {
+    id: "dept-digital",
+    parentId: "evp-digital",
+    type: "Department",
+    name: "Digital Products",
+    active: true,
+  },
+  {
+    id: "group-platform",
+    parentId: "dept-digital",
+    type: "Group",
+    name: "Platform Group",
+    active: true,
+  },
+  {
+    id: "project-orbit",
+    parentId: "group-platform",
+    type: "Project",
+    name: "Project Orbit",
+    active: true,
   },
 ];
 
@@ -95,6 +124,7 @@ export const sharePointSites: GovernedSharePointSite[] = [
   { id: "site-ledger", name: "Project Ledger", hostname: "contoso.sharepoint.com", path: "/sites/project-ledger", active: true, scanEnabled: true },
   { id: "site-supply", name: "Supply Excellence", hostname: "contoso.sharepoint.com", path: "/sites/supply-excellence", active: true, scanEnabled: true },
   { id: "site-archived", name: "Archived Transformation", hostname: "contoso.sharepoint.com", path: "/sites/archived-transformation", active: false, scanEnabled: false },
+  { id: "site-orbit", name: "Project Orbit", hostname: "contoso.sharepoint.com", path: "/sites/project-orbit", active: true, scanEnabled: false },
 ];
 
 export const hierarchySiteMappings: GovernanceHierarchySiteMapping[] = [
@@ -105,6 +135,7 @@ export const hierarchySiteMappings: GovernanceHierarchySiteMapping[] = [
   { nodeId: "project-ledger", siteId: "site-ledger", active: true },
   { nodeId: "project-supply", siteId: "site-supply", active: true },
   { nodeId: "project-archived", siteId: "site-archived", active: false },
+  { nodeId: "project-orbit", siteId: "site-orbit", active: true },
 ];
 
 export const hierarchyAssignments: GovernanceHierarchyAssignment[] = [
@@ -171,6 +202,13 @@ export const hierarchyAssignments: GovernanceHierarchyAssignment[] = [
     includeDescendants: false,
     active: false,
   },
+  {
+    userUpn: "orawan@contoso.com",
+    nodeId: "evp-digital",
+    businessRole: "EVP",
+    includeDescendants: true,
+    active: true,
+  },
 ];
 
 export type DemoPersona = {
@@ -188,6 +226,7 @@ export const demoPersonas: DemoPersona[] = [
   { upn: "kittipong@contoso.com", name: "Kittipong R.", role: "Department Head", initials: "KR" },
   { upn: "siriporn@contoso.com", name: "Siriporn W.", role: "Project Owner · zero Sensitive", initials: "SW" },
   { upn: "delegate@contoso.com", name: "Delegate User", role: "Multiple assignments", initials: "DU" },
+  { upn: "orawan@contoso.com", name: "Orawan D.", role: "EVP · separate tree", initials: "OD" },
   { upn: "somchai@contoso.com", name: "Somchai N.", role: "No assignment", initials: "SN" },
 ];
 

@@ -249,6 +249,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       FUNCTIONS_EXTENSION_VERSION: '~4'
       FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR: '1'
       REPORT_DATA_SOURCE: 'azure-table'
+      REPORT_SITE_SOURCE: 'mapping-table'
       REPORT_CACHE_TENANT_ID: reportCacheTenantId
       REPORT_REPORTABLE_LABEL_IDS: reportableLabelIds
       REPORT_PILOT_SITE_ID: pilotSiteId
@@ -266,6 +267,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       AZURE_TABLE_SCAN_RUN_NAME: 'SensitivityScanRuns'
       AZURE_TABLE_DELTA_STATE_NAME: 'SensitivityDeltaState'
       AZURE_TABLE_SITE_SUMMARY_NAME: 'SiteLabelSummary'
+      AZURE_TABLE_SITE_NAME: 'ScannerSites'
+      AZURE_TABLE_SITE_MAPPING_NAME: 'HierarchySiteMappings'
     }
   }
 }

@@ -1,7 +1,7 @@
 # Requirements Book: SharePoint Sensitivity Label Report
 
-Version: **1.1 (Multi-label Prototype Handoff Draft)**
-Date: **2026-07-14**  
+Version: **1.2 (Multi-EVP Forest Scope)**
+Date: **2026-07-20**
 Language: **Thai with English technical terms**  
 Intended destination: **New standalone repository and new Codex thread**
 
@@ -20,7 +20,7 @@ Intended destination: **New standalone repository and new Codex thread**
 - เป็นแอปใหม่สำหรับรายงานอย่างเดียว ไม่รวมอยู่ในหน้า Reviewer ของระบบเดิม
 - ผู้ใช้แต่ละคนเห็นข้อมูลตาม hierarchy ที่ถูก assign ด้วย UPN
 - SharePoint sites เป็น flat inventory แยกจาก hierarchy ของบริษัท และเชื่อมกันผ่าน explicit mapping
-- EVP เห็นทุก site ใต้ node ของตน
+- EVP เห็นทุก site ที่ map อยู่ใต้ node และ descendants ของตนเท่านั้น ไม่ใช่ทั้ง tenant
 - Department/Group/Project เห็นเฉพาะ branch ของตนและ descendants ที่ได้รับอนุญาต
 - แสดงจำนวน Sensitive files ในแต่ละระดับ hierarchy, site และ document library
 - Drill down ได้ถึงชื่อไฟล์และ path ไม่ใช่แค่จำนวน
@@ -129,17 +129,13 @@ Signed-in UPN
 
 ## 6. Hierarchy Model
 
-Default organization model:
+Default organization model เป็น forest ที่มี EVP roots ได้หลายคน:
 
 ```text
-EVP
-├── Department A
-│   ├── Group A1
-│   │   ├── Project A1-1
-│   │   └── Project A1-2
-│   └── Group A2
-└── Department B
-    └── Project B1
+EVP A                         EVP B
+└── Department A             └── Department B
+    └── Group A                  └── Group B
+        └── Project A                └── Project B
 ```
 
 Hierarchy นี้คือโครงสร้างตำแหน่ง/หน่วยงานของบริษัทลูกค้า ไม่ใช่โครงสร้างของ SharePoint ทุก node เป็นขอบเขตทางธุรกิจเท่านั้น ระดับจริงอาจเปลี่ยนชื่อได้ตามโครงสร้างลูกค้า แต่ prototype ต้องรองรับอย่างน้อย:
@@ -148,6 +144,10 @@ Hierarchy นี้คือโครงสร้างตำแหน่ง/ห
 - Department
 - Group
 - Project
+
+สำหรับ requirement ปัจจุบัน parent chain ต้องเป็น `EVP -> Department -> Group -> Project`
+เท่านั้น: EVP ไม่มี parent, Department อยู่ใต้ EVP, Group อยู่ใต้ Department และ Project อยู่ใต้
+Group แต่ละ node อยู่ใน EVP tree เดียว และการ traverse descendants ต้องไม่ข้ามไปยัง EVP root อื่น
 
 ### 6.1 SharePoint Site mapping
 
@@ -164,17 +164,22 @@ Flat SharePoint Site inventory
 - Site record ต้องมี Site ID, display name, hostname/path, active state และ scheduled-scan state
 - การย้าย Site ระหว่างหน่วยงานคือการแก้ mapping ไม่ใช่การแก้ parent/child ของ Site
 - Hierarchy traversal ให้ visible node IDs ก่อน แล้วจึง resolve allowed site IDs ผ่าน mapping
+- การมี Site อยู่ใน scan registry หรือ cache เพียงอย่างเดียวไม่ให้สิทธิ์ดู Site ต้องมี active mapping
+  อยู่ใน visible descendants ของ assignment เสมอ
 
 ### 6.2 Expected visibility
 
 | Assignment | Scope ที่ต้องเห็น |
 | --- | --- |
-| EVP ที่ root | ทุก active site ใต้ root |
+| EVP ที่ root ของตน | ทุก active site ที่ map อยู่ใน descendants ของ EVP tree นั้นเท่านั้น |
 | Department Head | ทุก site ใน Department branch ของตน |
 | Group Manager | ทุก site ใน Group branch ของตน |
 | Project Owner | Sites ที่ map กับ Project node ของตนเท่านั้น เว้นแต่มี assignment เพิ่ม |
 | หลาย assignments | Union ของทุก allowed site โดยไม่ซ้ำ |
 | ไม่มี assignment | ไม่เห็น inventory |
+
+EVP ไม่ใช่ tenant-wide report administrator โดยอัตโนมัติ และต้องไม่เห็น Site ที่ map อยู่ใต้ EVP
+root อื่นหรือ Site ที่ยังไม่มี business mapping แม้ Site นั้นจะ active อยู่ใน `ScannerSites`
 
 ### 6.3 Hierarchy และ Site mapping validation
 
@@ -191,6 +196,8 @@ Flat SharePoint Site inventory
 - Mapping ที่อ้าง node หรือ Site ไม่มีอยู่
 - Duplicate mapping หรือ Site มีหลาย active canonical placements
 - UPN ว่างหรือรูปแบบไม่ถูกต้อง
+- Parent type ผิดลำดับจาก `EVP -> Department -> Group -> Project`
+- EVP ที่มี parent หรือ node ระดับอื่นที่ไม่มี parent ตามชนิดของตน
 
 Inactive node หรือ inactive assignment ต้องไม่เพิ่ม scope
 

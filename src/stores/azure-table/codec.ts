@@ -1,5 +1,7 @@
 import type {
   DeltaState,
+  GovernedSharePointSite,
+  GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
   SiteSensitivitySummary,
@@ -31,6 +33,17 @@ type SiteSummaryEntity = Omit<
   labelCountsJson: string;
   libraryCountsJson: string;
   statusCountsJson: string;
+};
+
+type SiteEntity = Omit<GovernedSharePointSite, "scanLibraryIds"> & {
+  partitionKey: string;
+  rowKey: string;
+  scanLibraryIdsJson?: string;
+};
+
+type SiteMappingEntity = GovernanceHierarchySiteMapping & {
+  partitionKey: string;
+  rowKey: string;
 };
 
 type AzureTableServiceMetadata = {
@@ -173,4 +186,59 @@ export function fromSiteSummaryEntity(
   return { ...summary, labelCounts, libraryCounts, statusCounts };
 }
 
-export type { DeltaStateEntity, InventoryEntity, ScanRunEntity, SiteSummaryEntity };
+export function toSiteEntity(tenantId: string, site: GovernedSharePointSite): SiteEntity {
+  const { scanLibraryIds, ...properties } = site;
+  return withoutUndefined({
+    ...properties,
+    partitionKey: encodedKey(tenantId),
+    rowKey: encodedKey(site.id),
+    scanLibraryIdsJson: scanLibraryIds ? JSON.stringify(scanLibraryIds) : undefined,
+  });
+}
+
+export function fromSiteEntity(
+  entity: SiteEntity & AzureTableServiceMetadata,
+): GovernedSharePointSite {
+  const site = entityProperties(
+    entity,
+    ["partitionKey", "rowKey", "scanLibraryIdsJson", "etag", "timestamp"] as const,
+  );
+  if (!entity.scanLibraryIdsJson) return site;
+  const scanLibraryIds = JSON.parse(entity.scanLibraryIdsJson) as unknown;
+  if (!Array.isArray(scanLibraryIds)
+    || scanLibraryIds.length === 0
+    || scanLibraryIds.some((value) => typeof value !== "string" || !value.trim())
+    || new Set(scanLibraryIds).size !== scanLibraryIds.length) {
+    throw new Error("Azure Table Site scan-library allowlist is invalid");
+  }
+  return { ...site, scanLibraryIds };
+}
+
+export function toSiteMappingEntity(
+  tenantId: string,
+  mapping: GovernanceHierarchySiteMapping,
+): SiteMappingEntity {
+  return {
+    ...mapping,
+    partitionKey: encodedKey(tenantId),
+    rowKey: `${encodedKey(mapping.nodeId)}|${encodedKey(mapping.siteId)}`,
+  };
+}
+
+export function fromSiteMappingEntity(
+  entity: SiteMappingEntity & AzureTableServiceMetadata,
+): GovernanceHierarchySiteMapping {
+  return entityProperties(
+    entity,
+    ["partitionKey", "rowKey", "etag", "timestamp"] as const,
+  );
+}
+
+export type {
+  DeltaStateEntity,
+  InventoryEntity,
+  ScanRunEntity,
+  SiteEntity,
+  SiteMappingEntity,
+  SiteSummaryEntity,
+};

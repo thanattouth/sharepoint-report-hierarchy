@@ -58,6 +58,16 @@ resource siteLabelSummaryTable 'Microsoft.Storage/storageAccounts/tableServices/
   name: 'SiteLabelSummary'
 }
 
+resource scannerSiteTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'ScannerSites'
+}
+
+resource hierarchySiteMappingTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'HierarchySiteMappings'
+}
+
 var storageTableDataContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
@@ -79,4 +89,6 @@ output inventoryTableName string = inventoryTable.name
 output scanRunTableName string = scanRunTable.name
 output deltaStateTableName string = deltaStateTable.name
 output siteLabelSummaryTableName string = siteLabelSummaryTable.name
+output scannerSiteTableName string = scannerSiteTable.name
+output hierarchySiteMappingTableName string = hierarchySiteMappingTable.name
 output tableDataRoleAssignmentManagedByDeployment bool = assignTableDataRole

@@ -7,6 +7,8 @@ import type { TokenCredential } from "@azure/identity";
 import type {
   DeltaState,
   DeletedInventoryIdentity,
+  GovernedSharePointSite,
+  GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
   SiteSensitivitySummary,
@@ -15,6 +17,8 @@ import type {
   DeltaStateStore,
   InventoryStore,
   ScanRunStore,
+  SiteStore,
+  SiteMappingStore,
   SiteSummaryStore,
 } from "../contracts";
 import type { AzureTableStoreConfig } from "./config";
@@ -22,16 +26,22 @@ import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromScanRunEntity,
+  fromSiteEntity,
+  fromSiteMappingEntity,
   fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
   toScanRunEntity,
+  toSiteEntity,
+  toSiteMappingEntity,
   toSiteSummaryEntity,
   type DeltaStateEntity,
   type InventoryEntity,
   type ScanRunEntity,
+  type SiteEntity,
+  type SiteMappingEntity,
   type SiteSummaryEntity,
 } from "./codec";
 
@@ -114,6 +124,19 @@ export class AzureTableScanRunStore implements ScanRunStore {
     private readonly tenantId: string,
   ) {}
 
+  async get(runId: string) {
+    try {
+      const entity = await this.client.getEntity<ScanRunEntity>(
+        encodeURIComponent(this.tenantId),
+        encodeURIComponent(runId),
+      );
+      return fromScanRunEntity(entity as ScanRunEntity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
   async listRecent() {
     const entities = this.client.listEntities<ScanRunEntity>({
       queryOptions: { filter: `PartitionKey eq '${odata(encodeURIComponent(this.tenantId))}'` },
@@ -127,6 +150,96 @@ export class AzureTableScanRunStore implements ScanRunStore {
 
   async save(run: SensitivityScanRun) {
     await this.client.upsertEntity(toScanRunEntity(this.tenantId, run), "Replace");
+  }
+}
+
+export class AzureTableSiteStore implements SiteStore {
+  constructor(
+    private readonly client: TableClient,
+    private readonly tenantId: string,
+  ) {}
+
+  async get(siteId: string) {
+    try {
+      const entity = await this.client.getEntity<SiteEntity>(
+        encodeURIComponent(this.tenantId),
+        encodeURIComponent(siteId),
+      );
+      return fromSiteEntity(entity as SiteEntity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async listScanEnabled() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteEntity>({
+      queryOptions: {
+        filter: `PartitionKey eq '${odata(partitionKey)}' and active eq true and scanEnabled eq true`,
+      },
+    });
+    const sites: GovernedSharePointSite[] = [];
+    for await (const entity of entities) sites.push(fromSiteEntity(entity as SiteEntity));
+    return sites.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async listActive() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteEntity>({
+      queryOptions: {
+        filter: `PartitionKey eq '${odata(partitionKey)}' and active eq true`,
+      },
+    });
+    const sites: GovernedSharePointSite[] = [];
+    for await (const entity of entities) sites.push(fromSiteEntity(entity as SiteEntity));
+    return sites.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async listByBaselineWave(wave: number) {
+    if (!Number.isInteger(wave) || wave < 1) throw new Error("Baseline wave must be a positive integer");
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteEntity>({
+      queryOptions: {
+        filter: `PartitionKey eq '${odata(partitionKey)}' and baselineWave eq ${wave}`,
+      },
+    });
+    const sites: GovernedSharePointSite[] = [];
+    for await (const entity of entities) sites.push(fromSiteEntity(entity as SiteEntity));
+    return sites.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async save(site: GovernedSharePointSite) {
+    await this.client.upsertEntity(toSiteEntity(this.tenantId, site), "Replace");
+  }
+}
+
+export class AzureTableSiteMappingStore implements SiteMappingStore {
+  constructor(
+    private readonly client: TableClient,
+    private readonly tenantId: string,
+  ) {}
+
+  async listActive() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteMappingEntity>({
+      queryOptions: {
+        filter: `PartitionKey eq '${odata(partitionKey)}' and active eq true`,
+      },
+    });
+    const mappings: GovernanceHierarchySiteMapping[] = [];
+    for await (const entity of entities) {
+      mappings.push(fromSiteMappingEntity(entity as SiteMappingEntity));
+    }
+    return mappings.sort((left, right) =>
+      left.nodeId.localeCompare(right.nodeId) || left.siteId.localeCompare(right.siteId));
+  }
+
+  async save(mapping: GovernanceHierarchySiteMapping) {
+    if (!mapping.nodeId.trim() || !mapping.siteId.trim()) {
+      throw new Error("Hierarchy Site mapping requires non-empty node and Site IDs");
+    }
+    await this.client.upsertEntity(toSiteMappingEntity(this.tenantId, mapping), "Replace");
   }
 }
 
@@ -204,6 +317,14 @@ export function createAzureTableStores(input: {
     ),
     siteSummaryStore: new AzureTableSiteSummaryStore(
       new TableClient(input.config.endpoint, input.config.siteSummaryTableName, input.credential),
+      input.tenantId,
+    ),
+    siteStore: new AzureTableSiteStore(
+      new TableClient(input.config.endpoint, input.config.siteTableName, input.credential),
+      input.tenantId,
+    ),
+    siteMappingStore: new AzureTableSiteMappingStore(
+      new TableClient(input.config.endpoint, input.config.siteMappingTableName, input.credential),
       input.tenantId,
     ),
   };

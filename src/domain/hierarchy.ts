@@ -37,6 +37,22 @@ export function validateHierarchyConfiguration(
   }
 
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  const requiredParentType: Partial<Record<GovernanceHierarchyNode["type"], GovernanceHierarchyNode["type"]>> = {
+    Department: "EVP",
+    Group: "Department",
+    Project: "Group",
+  };
+  for (const node of nodes) {
+    if (node.type === "EVP") {
+      if (node.parentId) issues.push(`EVP node must be a root: ${node.id}`);
+      continue;
+    }
+    const expectedParentType = requiredParentType[node.type];
+    const parent = node.parentId ? byId.get(node.parentId) : undefined;
+    if (!node.parentId || (parent && parent.type !== expectedParentType)) {
+      issues.push(`${node.type} node must have a ${expectedParentType} parent: ${node.id}`);
+    }
+  }
   const visiting = new Set<string>();
   const visited = new Set<string>();
   const visit = (id: string): void => {
@@ -142,7 +158,6 @@ export function resolveHierarchyScope(
       )
       .map((mapping) => mapping.siteId),
   );
-
   return {
     assignedNodeIds: [...new Set(activeAssignments.map((item) => item.nodeId))],
     visibleNodeIds: [...visible],

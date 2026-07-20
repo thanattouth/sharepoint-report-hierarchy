@@ -8,15 +8,22 @@ import {
   fromDeltaStateEntity,
   fromInventoryEntity,
   fromScanRunEntity,
+  fromSiteEntity,
+  fromSiteMappingEntity,
   fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
   toScanRunEntity,
+  toSiteEntity,
+  toSiteMappingEntity,
   toSiteSummaryEntity,
 } from "../src/stores/azure-table/codec";
-import { AzureTableInventoryStore } from "../src/stores/azure-table/stores";
+import {
+  AzureTableInventoryStore,
+  AzureTableSiteStore,
+} from "../src/stores/azure-table/stores";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const siteId = "contoso.sharepoint.com,site-collection,site-web";
@@ -58,6 +65,8 @@ test("Azure Table configuration fails closed and supplies schema table names", (
   assert.equal(config.scanRunTableName, "SensitivityScanRuns");
   assert.equal(config.deltaStateTableName, "SensitivityDeltaState");
   assert.equal(config.siteSummaryTableName, "SiteLabelSummary");
+  assert.equal(config.siteTableName, "ScannerSites");
+  assert.equal(config.siteMappingTableName, "HierarchySiteMappings");
   assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
   assert.throws(
     () => loadAzureTableStoreConfig({
@@ -68,6 +77,61 @@ test("Azure Table configuration fails closed and supplies schema table names", (
     }),
     /requires managed-identity/,
   );
+});
+
+test("Azure Table hierarchy-to-Site mapping codec preserves the explicit placement", () => {
+  const mapping = { nodeId: "evp-corporate", siteId, active: true };
+  assert.deepEqual(fromSiteMappingEntity({
+    ...toSiteMappingEntity(tenantId, mapping),
+    etag: "W/metadata",
+    timestamp: new Date("2026-07-16T00:00:00.000Z"),
+  }), mapping);
+});
+
+test("Azure Table Site registry codec preserves flat scan configuration", () => {
+  const site = {
+    id: siteId,
+    name: "DGCS",
+    hostname: "contoso.sharepoint.com",
+    path: "/sites/DGCS",
+    active: true,
+    scanEnabled: true,
+    scanLibraryIds: ["drive-secret", "drive-confidential"],
+    baselineWave: 1,
+  };
+  assert.deepEqual(fromSiteEntity({
+    ...toSiteEntity(tenantId, site),
+    etag: "W/metadata",
+    timestamp: new Date("2026-07-16T00:00:00.000Z"),
+  }), site);
+});
+
+test("Azure Table Site registry can list every active Site independently of rollout wave", async () => {
+  let observedFilter = "";
+  const activeSite = {
+    id: siteId,
+    name: "DGCS",
+    hostname: "contoso.sharepoint.com",
+    path: "/sites/DGCS",
+    active: true,
+    scanEnabled: true,
+  };
+  const client = {
+    listEntities(options: { queryOptions?: { filter?: string } }) {
+      observedFilter = options.queryOptions?.filter ?? "";
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield toSiteEntity(tenantId, activeSite);
+        },
+      };
+    },
+  } as unknown as TableClient;
+
+  const sites = await new AzureTableSiteStore(client, tenantId).listActive();
+
+  assert.deepEqual(sites, [activeSite]);
+  assert.match(observedFilter, /active eq true/);
+  assert.doesNotMatch(observedFilter, /baselineWave|scanEnabled/);
 });
 
 test("Site summary materializes distinct reportable counts and round-trips through Table", () => {

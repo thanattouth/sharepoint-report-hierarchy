@@ -9,13 +9,21 @@ export type GraphPilotAuthConfig =
       tenantId: string;
       clientId: string;
       clientSecret: string;
+    }
+  | {
+      mode: "federated-identity";
+      tenantId: string;
+      clientId: string;
+      managedIdentityClientId: string;
     };
 
 export type GraphPilotConfig = {
   tenantId: string;
+  scopeMode: "single-site" | "registry";
   allowedSiteId: string;
   reportableLabelIds: Set<string>;
   reportableLabelNames: Map<string, string>;
+  allowedLibraryNames: ReadonlySet<string>;
   maxConcurrency: number;
   maxRetries: number;
   auth: GraphPilotAuthConfig;
@@ -82,8 +90,32 @@ function reportableLabelNames(
   return result;
 }
 
+function allowedLibraryNames(env: Record<string, string | undefined>) {
+  const configured = env.SCANNER_ALLOWED_LIBRARY_NAMES?.trim()
+    || env.P4_PILOT_LIBRARY_NAMES?.trim();
+  if (!configured) {
+    throw new ScannerConfigurationError("SCANNER_ALLOWED_LIBRARY_NAMES is required");
+  }
+  const names = configured.split(",").map((name) => name.trim()).filter(Boolean);
+  if (names.length === 0 || new Set(names).size !== names.length) {
+    throw new ScannerConfigurationError(
+      "SCANNER_ALLOWED_LIBRARY_NAMES must contain unique non-empty exact library names",
+    );
+  }
+  return new Set(names);
+}
+
+function scopeMode(env: Record<string, string | undefined>) {
+  const mode = env.SCANNER_SCOPE_MODE?.trim() || "single-site";
+  if (mode !== "single-site" && mode !== "registry") {
+    throw new ScannerConfigurationError("SCANNER_SCOPE_MODE must be single-site or registry");
+  }
+  return mode;
+}
+
 export function loadGraphPilotConfig(env: Record<string, string | undefined>): GraphPilotConfig {
   const tenantId = uuid(required(env, "SCANNER_TENANT_ID"), "SCANNER_TENANT_ID");
+  const configuredScopeMode = scopeMode(env);
   const allowedSiteId = required(env, "SCANNER_ALLOWED_SITE_ID");
   if (!SITE_ID_PATTERN.test(allowedSiteId)) {
     throw new ScannerConfigurationError("SCANNER_ALLOWED_SITE_ID has an invalid Graph site ID format");
@@ -99,8 +131,12 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
     reportableLabelIds,
   );
   const mode = env.SCANNER_AUTH_MODE?.trim() || "default";
-  if (!(["default", "client-secret"] as const).includes(mode as "default" | "client-secret")) {
-    throw new ScannerConfigurationError("SCANNER_AUTH_MODE must be default or client-secret");
+  if (!(["default", "client-secret", "federated-identity"] as const).includes(
+    mode as "default" | "client-secret" | "federated-identity",
+  )) {
+    throw new ScannerConfigurationError(
+      "SCANNER_AUTH_MODE must be default, client-secret or federated-identity",
+    );
   }
 
   const auth: GraphPilotAuthConfig = mode === "client-secret"
@@ -110,7 +146,17 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
         clientId: uuid(required(env, "SCANNER_CLIENT_ID"), "SCANNER_CLIENT_ID"),
         clientSecret: required(env, "SCANNER_CLIENT_SECRET"),
       }
-    : {
+    : mode === "federated-identity"
+      ? {
+          mode,
+          tenantId,
+          clientId: uuid(required(env, "SCANNER_CLIENT_ID"), "SCANNER_CLIENT_ID"),
+          managedIdentityClientId: uuid(
+            required(env, "SCANNER_MANAGED_IDENTITY_CLIENT_ID"),
+            "SCANNER_MANAGED_IDENTITY_CLIENT_ID",
+          ),
+        }
+      : {
         mode: "default",
         tenantId,
         managedIdentityClientId: env.SCANNER_MANAGED_IDENTITY_CLIENT_ID
@@ -120,9 +166,11 @@ export function loadGraphPilotConfig(env: Record<string, string | undefined>): G
 
   return {
     tenantId,
+    scopeMode: configuredScopeMode,
     allowedSiteId,
     reportableLabelIds,
     reportableLabelNames: labelNames,
+    allowedLibraryNames: allowedLibraryNames(env),
     maxConcurrency: boundedInteger(env.SCANNER_MAX_CONCURRENCY, 4, 1, 16, "SCANNER_MAX_CONCURRENCY"),
     maxRetries: boundedInteger(env.SCANNER_MAX_RETRIES, 3, 0, 8, "SCANNER_MAX_RETRIES"),
     auth,
