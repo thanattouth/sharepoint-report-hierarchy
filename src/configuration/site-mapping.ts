@@ -34,6 +34,16 @@ export type SiteMappingChange = {
   expectedVersion: number;
 };
 
+export type SiteMappingInboxStatus = SiteMappingInboxRow["status"] | "all";
+
+export type SiteMappingInboxPage = {
+  rows: SiteMappingInboxRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
 export function hierarchyBreadcrumb(
   nodeId: string,
   nodes: GovernanceHierarchyNode[],
@@ -79,6 +89,33 @@ export function buildSiteMappingInbox(
     const order = { unmapped: 0, mapped: 1, inactive: 2 };
     return order[left.status] - order[right.status] || left.siteName.localeCompare(right.siteName);
   });
+}
+
+export function querySiteMappingInbox(
+  rows: SiteMappingInboxRow[],
+  input: {
+    status: SiteMappingInboxStatus;
+    query: string;
+    page: number;
+    pageSize: number;
+  },
+): SiteMappingInboxPage {
+  const query = input.query.trim().toLocaleLowerCase();
+  const filtered = rows.filter((row) => (
+    (input.status === "all" || row.status === input.status)
+    && (!query || [row.siteName, row.siteId, row.siteUrl, row.nodeBreadcrumb ?? ""]
+      .some((value) => value.toLocaleLowerCase().includes(query)))
+  ));
+  const pageCount = Math.max(Math.ceil(filtered.length / input.pageSize), 1);
+  const page = Math.min(input.page, pageCount);
+  const offset = (page - 1) * input.pageSize;
+  return {
+    rows: filtered.slice(offset, offset + input.pageSize),
+    total: filtered.length,
+    page,
+    pageSize: input.pageSize,
+    pageCount,
+  };
 }
 
 export function previewSiteMappingChange(input: {

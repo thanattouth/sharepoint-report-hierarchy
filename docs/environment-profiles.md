@@ -14,6 +14,7 @@ combined `.env` file. Copy only the examples required by the command being run:
 | `.env.report-client.local` | Sites server-to-Report-API connection | Function key; store it as a Sites secret when hosted |
 | `.env.p6-operator.local` | Report API infrastructure, migration, and verification | No workload credential |
 | `.env.configuration-admin.local` | configuration tenant and bounded admin allowlist | No Table token; hosted access uses managed identity |
+| `.env.configuration-client.local` | Sites server-to-Configuration-Admin-API bridge | Function key and bounded pilot actor; store both as Sites server secrets when hosted |
 | `.env.p7-operator.local` | Configuration Admin infrastructure and deployment controls | No workload credential |
 
 Every `*:local` npm command uses `scripts/run-env-profile.ts`. The runner:
@@ -51,3 +52,6 @@ example before deleting the legacy file.
   the scheduled scanner, Report API, or Configuration Admin Function settings.
 - Keep Report API and Configuration Admin identities separate. A local env profile is not an RBAC
   boundary; Azure roles remain the enforcement boundary.
+- Keep the Configuration Admin Function key and bridge actor in `.env.configuration-client.local`
+  for local work or in Sites server secrets when hosted. Never expose either through a
+  `NEXT_PUBLIC_*` value or accept the actor from a browser request.

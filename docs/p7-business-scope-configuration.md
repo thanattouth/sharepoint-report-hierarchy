@@ -26,20 +26,26 @@ The apply path creates missing configuration tables, seeds nodes and assignments
 Sites that do not already have a canonical row, then reads all records back and validates counts,
 references, parent order, cycles, active Sites, and unique placement.
 
-## Next admin slice
+## Site Mapping Admin Inbox
 
-Build a separate configuration-admin API and Site Mapping Inbox. Keep its secret and Table token
-server-side. The UI must support:
+The separate Configuration Admin API and `/admin/site-mappings` Inbox keep the Function key, pilot
+actor, and Table token server-side. The current UI supports:
 
 1. unmapped-first searchable Site rows;
 2. mapped/unmapped/inactive filters and pagination;
 3. a searchable target-node selector showing full EVP / Department / Group / Project breadcrumb;
 4. bulk preview showing new assignments, moves, unchanged rows, and affected direct principals;
-5. optimistic version checks and audit identity before apply.
+5. version/audit metadata carried into preview for optimistic apply later.
 
-Until authenticated Entra administration is connected, do not expose a browser write path. A
-Function key may protect a bounded server-to-server pilot, but the actor must come from an approved
-server-side allowlist, never an arbitrary browser header.
+The Configuration Admin Function paginates before returning rows to Sites, with a maximum page size
+of 50 and bulk preview limit of 100. The Sites bridge validates all browser input, rejects redirects,
+and attaches both the Function key and approved pilot actor from server-only configuration.
+
+Until authenticated Entra administration is connected, the UI renders Apply as locked and the
+same-origin apply route returns `403 authenticated-administrator-required`. A Function key may
+protect a bounded server-to-server pilot, but it is not browser-user authentication and therefore
+does not authorize a write. The actor must continue to come from an approved server-side allowlist,
+never an arbitrary browser header.
 
 ## Deployed Configuration Admin boundary
 

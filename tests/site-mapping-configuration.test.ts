@@ -5,6 +5,7 @@ import {
   buildSiteMappingInbox,
   hierarchyBreadcrumb,
   previewSiteMappingChange,
+  querySiteMappingInbox,
 } from "../src/configuration/site-mapping";
 import type {
   GovernanceHierarchySiteMapping,
@@ -40,6 +41,30 @@ test("bulk preview distinguishes new mappings, moves, and unchanged placements",
   assert.equal(preview.newAssignments, 1);
   assert.equal(preview.unchanged, 1);
   assert.equal(preview.moves, 1);
+});
+
+test("Site mapping inbox filters and paginates before returning rows to the browser", () => {
+  const mappings = hierarchySiteMappings.filter((mapping) => mapping.siteId !== "site-nova");
+  const inbox = buildSiteMappingInbox(sharePointSites, hierarchyNodes, mappings);
+  const unmapped = querySiteMappingInbox(inbox, {
+    status: "unmapped",
+    query: "nova",
+    page: 1,
+    pageSize: 1,
+  });
+  assert.equal(unmapped.total, 1);
+  assert.equal(unmapped.rows[0].siteId, "site-nova");
+  assert.equal(unmapped.pageCount, 1);
+
+  const mapped = querySiteMappingInbox(inbox, {
+    status: "mapped",
+    query: "",
+    page: 2,
+    pageSize: 2,
+  });
+  assert.equal(mapped.page, 2);
+  assert.equal(mapped.rows.length, 2);
+  assert.ok(mapped.rows.every((row) => row.status === "mapped"));
 });
 
 class MemoryMappingStore implements SiteMappingStore {

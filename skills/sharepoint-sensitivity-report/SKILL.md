@@ -111,6 +111,10 @@ Enforce all of these on every change:
 - Avoid Azure Functions' reserved `admin` HTTP route segment for custom Configuration Admin
   endpoints. Verify indexed route metadata after publishing a Flex Consumption package, and keep
   read/preview smoke checks separate from any apply operation.
+- Keep the Site Mapping Inbox behind a narrow server-side bridge. Validate search, status,
+  pagination, node, Site ID, and expected-version inputs; reject redirects; attach the Function key
+  and bounded pilot actor only on the server. Until authenticated Entra claims identify an approved
+  administrator, render Apply as locked and make every browser-triggered apply route fail closed.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through

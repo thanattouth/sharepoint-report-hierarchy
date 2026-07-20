@@ -95,6 +95,12 @@ export const ENV_FILE_SCOPES = {
     "REPORT_CACHE_TENANT_ID",
     "CONFIG_ADMIN_ALLOWED_ACTORS",
   ],
+  ".env.configuration-client.local": [
+    "CONFIG_ADMIN_API_BASE_URL",
+    "CONFIG_ADMIN_API_FUNCTION_KEY",
+    "CONFIG_ADMIN_BRIDGE_ACTOR",
+    "CONFIG_ADMIN_API_TIMEOUT_MS",
+  ],
   ".env.p7-operator.local": [
     "P7_AZURE_SUBSCRIPTION_ID",
     "P7_AZURE_RESOURCE_GROUP",
@@ -129,6 +135,7 @@ export const ENV_PROFILES = {
     ".env.configuration-admin.local",
     ".env.p7-operator.local",
   ],
+  "p7-sites": [".env.configuration-client.local"],
 } as const satisfies Record<string, readonly EnvFileName[]>;
 
 export type EnvProfileName = keyof typeof ENV_PROFILES;

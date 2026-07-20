@@ -87,3 +87,15 @@ test("no-assignment state does not render inventory rows", async () => {
   assert.match(html, /NO ACTIVE ASSIGNMENT/);
   assert.doesNotMatch(html, /FY27-Strategy\.pdf|Cashflow-Forecast\.xlsx/);
 });
+
+test("server-renders the Site Mapping Admin Inbox without exposing browser apply", async () => {
+  const response = await render("/admin/site-mappings");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Site Mapping Inbox/);
+  assert.match(html, /FLAT SHAREPOINT INVENTORY/);
+  assert.match(html, /Assign business node/);
+  assert.match(html, /Function key stays private/);
+  assert.match(html, /Apply ยังถูกล็อก/);
+  assert.doesNotMatch(html, /CONFIG_ADMIN_API_FUNCTION_KEY|x-functions-key|server-secret/);
+});

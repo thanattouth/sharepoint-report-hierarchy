@@ -55,24 +55,44 @@ const requestHeaders = {
   "x-configuration-actor": actor,
   "content-type": "application/json",
 };
-const inboxResponse = await fetch(`https://${hostname}/api/configuration/site-mappings?status=all`, {
-  headers: requestHeaders,
-  redirect: "manual",
-});
-if (inboxResponse.status !== 200) {
-  const diagnostic = (await inboxResponse.text()).slice(0, 200).replaceAll(/\s+/g, " ");
-  throw new Error(`Configuration inbox returned HTTP ${inboxResponse.status}: ${diagnostic}`);
-}
-const inbox = await inboxResponse.json() as {
+type InboxPage = {
   rows?: Array<{ siteId?: string; siteName?: string; nodeId?: string; version?: number }>;
   nodes?: Array<{ id?: string }>;
+  total?: number;
+  page?: number;
+  pageCount?: number;
 };
-if (!Array.isArray(inbox.rows) || inbox.rows.length < 8 || !Array.isArray(inbox.nodes) || inbox.nodes.length !== 15) {
+
+async function fetchInboxPage(page: number): Promise<InboxPage> {
+  const inboxResponse = await fetch(
+    `https://${hostname}/api/configuration/site-mappings?status=all&page=${page}&pageSize=50`,
+    { headers: requestHeaders, redirect: "manual" },
+  );
+  if (inboxResponse.status !== 200) {
+    const diagnostic = (await inboxResponse.text()).slice(0, 200).replaceAll(/\s+/g, " ");
+    throw new Error(`Configuration inbox returned HTTP ${inboxResponse.status}: ${diagnostic}`);
+  }
+  return inboxResponse.json() as Promise<InboxPage>;
+}
+
+const firstPage = await fetchInboxPage(1);
+if (!Array.isArray(firstPage.rows) || !Array.isArray(firstPage.nodes)
+  || firstPage.nodes.length !== 15 || !Number.isInteger(firstPage.total)
+  || !Number.isInteger(firstPage.pageCount) || (firstPage.pageCount ?? 0) > 100) {
   throw new Error("Configuration inbox response is invalid");
 }
-const mappedSiteCount = inbox.rows.filter((row) => Boolean(row.nodeId)).length;
+const rows = [...firstPage.rows];
+for (let page = 2; page <= (firstPage.pageCount ?? 1); page += 1) {
+  const nextPage = await fetchInboxPage(page);
+  if (!Array.isArray(nextPage.rows) || nextPage.total !== firstPage.total) {
+    throw new Error("Configuration inbox pagination changed during verification");
+  }
+  rows.push(...nextPage.rows);
+}
+if (rows.length !== firstPage.total) throw new Error("Configuration inbox pagination is incomplete");
+const mappedSiteCount = rows.filter((row) => Boolean(row.nodeId)).length;
 if (mappedSiteCount !== 8) throw new Error("Configuration inbox canonical placement count is invalid");
-const dgcs = inbox.rows.find((row) => row.siteName === "DGCS" && row.siteId && row.nodeId);
+const dgcs = rows.find((row) => row.siteName === "DGCS" && row.siteId && row.nodeId);
 if (!dgcs?.siteId || !dgcs.nodeId || !Number.isInteger(dgcs.version)) {
   throw new Error("Configuration inbox is missing mapped DGCS");
 }
@@ -92,9 +112,9 @@ if (preview.selectedSiteCount !== 1 || preview.unchanged !== 1 || preview.moves 
 }
 process.stdout.write(`${JSON.stringify({
   status: "verified-read-preview-only",
-  inboxSiteCount: inbox.rows.length,
+  inboxSiteCount: rows.length,
   mappedSiteCount,
-  activeNodeCount: inbox.nodes.length,
+  activeNodeCount: firstPage.nodes.length,
   previewUnchanged: preview.unchanged,
   browserWriteExposed: false,
 })}\n`);

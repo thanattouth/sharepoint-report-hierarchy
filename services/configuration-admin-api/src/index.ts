@@ -9,6 +9,8 @@ import {
   buildSiteMappingInbox,
   hierarchyBreadcrumb,
   previewSiteMappingChange,
+  querySiteMappingInbox,
+  type SiteMappingInboxStatus,
 } from "../../../src/configuration/site-mapping";
 import { createAzureTableCredential } from "../../../src/stores/azure-table/auth";
 import { loadAzureTableStoreConfig } from "../../../src/stores/azure-table/config";
@@ -46,19 +48,30 @@ async function contextFor(request: HttpRequest) {
 export async function inboxHandler(request: HttpRequest, context: InvocationContext) {
   try {
     const source = await contextFor(request);
-    const status = new URL(request.url).searchParams.get("status");
-    const query = new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const rows = buildSiteMappingInbox(source.sites, source.nodes, source.mappings).filter((row) =>
-      (!status || status === "all" || row.status === status)
-      && (!query || [row.siteName, row.siteId, row.siteUrl, row.nodeBreadcrumb ?? ""]
-        .some((value) => value.toLowerCase().includes(query))));
+    const params = new URL(request.url).searchParams;
+    const status = params.get("status") ?? "all";
+    if (!["all", "mapped", "unmapped", "inactive"].includes(status)) {
+      return json(400, { error: "invalid-inbox-status" });
+    }
+    const query = params.get("q")?.trim() ?? "";
+    if (query.length > 200) return json(400, { error: "inbox-query-too-long" });
+    const page = Number(params.get("page") ?? "1");
+    const pageSize = Number(params.get("pageSize") ?? "25");
+    if (!Number.isInteger(page) || page < 1 || page > 100_000
+      || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+      return json(400, { error: "invalid-inbox-pagination" });
+    }
+    const result = querySiteMappingInbox(
+      buildSiteMappingInbox(source.sites, source.nodes, source.mappings),
+      { status: status as SiteMappingInboxStatus, query, page, pageSize },
+    );
     const nodes = source.nodes.filter((node) => node.active).map((node) => ({
       id: node.id,
       type: node.type,
       name: node.name,
       breadcrumb: hierarchyBreadcrumb(node.id, source.nodes),
     }));
-    return json(200, { rows, nodes, total: rows.length });
+    return json(200, { ...result, nodes });
   } catch (error) {
     context.error({ event: "configuration-inbox-failed", errorType: error instanceof Error ? error.name : "UnknownError" });
     return json(error instanceof Error && error.message.includes("denied") ? 403 : 503, { error: "configuration-unavailable" });

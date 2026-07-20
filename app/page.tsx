@@ -147,6 +147,7 @@ export default async function Home({
           <a className="nav-item" href="#sites">Sites</a>
           <a className="nav-item" href="#inventory">File inventory</a>
           <a className="nav-item" href="#scan-status">Scan status</a>
+          <Link className="nav-item" href="/admin/site-mappings">Site mappings</Link>
         </nav>
 
         <div className="topbar-right">
