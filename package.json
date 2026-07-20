@@ -48,6 +48,12 @@
     "p6:api:check-multi-site:local": "node --import tsx scripts/run-env-profile.ts p6-report -- scripts/p6-check-report-api.ts",
     "p7:config:migrate:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-migrate-configuration.ts",
     "p7:config:migrate:apply:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-migrate-configuration.ts --apply",
+    "p7:admin:build": "npm --prefix services/configuration-admin-api run build",
+    "p7:admin:package": "node scripts/p7-package-configuration-admin-api.mjs",
+    "p7:admin:what-if:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-deploy-configuration-admin-api.ts --what-if",
+    "p7:admin:deploy:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-deploy-configuration-admin-api.ts --deploy",
+    "p7:admin:publish:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-publish-configuration-admin-api.ts",
+    "p7:admin:check:local": "node --import tsx scripts/run-env-profile.ts p7-configuration -- scripts/p7-check-configuration-admin-api.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

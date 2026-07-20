@@ -118,6 +118,6 @@ export async function applyHandler(request: HttpRequest, context: InvocationCont
   }
 }
 
-app.http("configuration-inbox", { methods: ["GET"], authLevel: "function", route: "admin/site-mappings", handler: inboxHandler });
-app.http("configuration-preview", { methods: ["POST"], authLevel: "function", route: "admin/site-mappings/preview", handler: previewHandler });
-app.http("configuration-apply", { methods: ["POST"], authLevel: "function", route: "admin/site-mappings/apply", handler: applyHandler });
+app.http("configuration-inbox", { methods: ["GET"], authLevel: "function", route: "configuration/site-mappings", handler: inboxHandler });
+app.http("configuration-preview", { methods: ["POST"], authLevel: "function", route: "configuration/site-mappings/preview", handler: previewHandler });
+app.http("configuration-apply", { methods: ["POST"], authLevel: "function", route: "configuration/site-mappings/apply", handler: applyHandler });

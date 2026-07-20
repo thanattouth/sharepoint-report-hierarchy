@@ -1,0 +1,100 @@
+import { spawnSync } from "node:child_process";
+
+function required(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function azJson(args: string[]) {
+  const result = spawnSync("az", [...args, "--only-show-errors", "--output", "json"], { encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr.trim() || "Azure CLI command failed");
+  return JSON.parse(result.stdout) as unknown;
+}
+
+function outputValue(outputs: unknown, name: string) {
+  if (!outputs || typeof outputs !== "object") throw new Error("Deployment outputs are unavailable");
+  const output = (outputs as Record<string, unknown>)[name];
+  const value = output && typeof output === "object" && "value" in output
+    ? (output as { value?: unknown }).value
+    : undefined;
+  if (typeof value !== "string" || !value) throw new Error(`Deployment output ${name} is unavailable`);
+  return value;
+}
+
+const subscriptionId = required("P7_AZURE_SUBSCRIPTION_ID");
+const resourceGroup = required("P7_AZURE_RESOURCE_GROUP");
+const actor = required("CONFIG_ADMIN_ALLOWED_ACTORS").split(",")[0]?.trim();
+if (!actor) throw new Error("CONFIG_ADMIN_ALLOWED_ACTORS has no actor");
+const outputs = azJson([
+  "deployment", "group", "show",
+  "--subscription", subscriptionId,
+  "--resource-group", resourceGroup,
+  "--name", "p7-configuration-admin-api-v1",
+  "--query", "properties.outputs",
+]);
+const functionAppName = outputValue(outputs, "functionAppName");
+const hostname = outputValue(outputs, "functionAppHostname");
+const keys = azJson([
+  "functionapp", "keys", "list",
+  "--subscription", subscriptionId,
+  "--resource-group", resourceGroup,
+  "--name", functionAppName,
+]);
+const functionKeys = keys && typeof keys === "object"
+  ? (keys as { functionKeys?: unknown }).functionKeys
+  : undefined;
+const functionKey = functionKeys && typeof functionKeys === "object"
+  ? Object.values(functionKeys as Record<string, unknown>)
+    .find((value): value is string => typeof value === "string" && Boolean(value))
+  : undefined;
+if (!functionKey) throw new Error("Function key is unavailable");
+const requestHeaders = {
+  "x-functions-key": functionKey,
+  "x-configuration-actor": actor,
+  "content-type": "application/json",
+};
+const inboxResponse = await fetch(`https://${hostname}/api/configuration/site-mappings?status=all`, {
+  headers: requestHeaders,
+  redirect: "manual",
+});
+if (inboxResponse.status !== 200) {
+  const diagnostic = (await inboxResponse.text()).slice(0, 200).replaceAll(/\s+/g, " ");
+  throw new Error(`Configuration inbox returned HTTP ${inboxResponse.status}: ${diagnostic}`);
+}
+const inbox = await inboxResponse.json() as {
+  rows?: Array<{ siteId?: string; siteName?: string; nodeId?: string; version?: number }>;
+  nodes?: Array<{ id?: string }>;
+};
+if (!Array.isArray(inbox.rows) || inbox.rows.length < 8 || !Array.isArray(inbox.nodes) || inbox.nodes.length !== 15) {
+  throw new Error("Configuration inbox response is invalid");
+}
+const mappedSiteCount = inbox.rows.filter((row) => Boolean(row.nodeId)).length;
+if (mappedSiteCount !== 8) throw new Error("Configuration inbox canonical placement count is invalid");
+const dgcs = inbox.rows.find((row) => row.siteName === "DGCS" && row.siteId && row.nodeId);
+if (!dgcs?.siteId || !dgcs.nodeId || !Number.isInteger(dgcs.version)) {
+  throw new Error("Configuration inbox is missing mapped DGCS");
+}
+const previewResponse = await fetch(`https://${hostname}/api/configuration/site-mappings/preview`, {
+  method: "POST",
+  headers: requestHeaders,
+  redirect: "manual",
+  body: JSON.stringify({
+    targetNodeId: dgcs.nodeId,
+    changes: [{ siteId: dgcs.siteId, expectedVersion: dgcs.version }],
+  }),
+});
+if (previewResponse.status !== 200) throw new Error(`Configuration preview returned HTTP ${previewResponse.status}`);
+const preview = await previewResponse.json() as Record<string, unknown>;
+if (preview.selectedSiteCount !== 1 || preview.unchanged !== 1 || preview.moves !== 0) {
+  throw new Error("Configuration preview response is invalid");
+}
+process.stdout.write(`${JSON.stringify({
+  status: "verified-read-preview-only",
+  inboxSiteCount: inbox.rows.length,
+  mappedSiteCount,
+  activeNodeCount: inbox.nodes.length,
+  previewUnchanged: preview.unchanged,
+  browserWriteExposed: false,
+})}\n`);

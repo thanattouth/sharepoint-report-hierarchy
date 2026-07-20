@@ -108,6 +108,9 @@ Enforce all of these on every change:
 - Give configuration writes a separate server-side admin boundary. Never add Table write access to
   the report reader or reuse the scanner identity. Keep browser write actions disabled until the
   server can derive and authorize an administrator identity.
+- Avoid Azure Functions' reserved `admin` HTTP route segment for custom Configuration Admin
+  endpoints. Verify indexed route metadata after publishing a Flex Consumption package, and keep
+  read/preview smoke checks separate from any apply operation.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through

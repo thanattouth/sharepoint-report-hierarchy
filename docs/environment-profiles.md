@@ -14,6 +14,7 @@ combined `.env` file. Copy only the examples required by the command being run:
 | `.env.report-client.local` | Sites server-to-Report-API connection | Function key; store it as a Sites secret when hosted |
 | `.env.p6-operator.local` | Report API infrastructure, migration, and verification | No workload credential |
 | `.env.configuration-admin.local` | configuration tenant and bounded admin allowlist | No Table token; hosted access uses managed identity |
+| `.env.p7-operator.local` | Configuration Admin infrastructure and deployment controls | No workload credential |
 
 Every `*:local` npm command uses `scripts/run-env-profile.ts`. The runner:
 

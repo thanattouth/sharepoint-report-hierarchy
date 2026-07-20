@@ -41,3 +41,7 @@ P7 schema, migration, rollback และ admin-write boundary อยู่ใน
 `docs/p7-business-scope-configuration.md` Report API มีสิทธิ์อ่านเท่านั้น ส่วน
 Configuration Admin API เป็น service แยกและยังไม่เปิด browser write จนกว่าจะ provision
 identity/RBAC และ authenticated administrator flow
+
+Configuration Admin API pilot ถูก provision ด้วย writer identity ที่มีสิทธิ์เฉพาะ configuration
+tables และ read-only `ScannerSites` แล้ว เส้นทาง inbox/preview ตรวจผ่าน ส่วน browser apply ยังคง
+ปิดไว้จนกว่าจะสร้าง Site Mapping Admin UI และ authenticated administrator boundary

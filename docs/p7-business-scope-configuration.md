@@ -41,6 +41,33 @@ Until authenticated Entra administration is connected, do not expose a browser w
 Function key may protect a bounded server-to-server pilot, but the actor must come from an approved
 server-side allowlist, never an arbitrary browser header.
 
+## Deployed Configuration Admin boundary
+
+The bounded pilot runs in `func-sp-sens-config-rxqc7ksp3` with two user-assigned identities:
+
+- `id-sp-sens-config-host` owns only Function host storage and monitoring publication.
+- `id-sp-sens-config-writer` has `Storage Table Data Contributor` at the exact scopes of
+  `HierarchyNodes`, `ScopeAssignments`, `HierarchySitePlacements`, and
+  `HierarchySiteMappingAudit`, plus `Storage Table Data Reader` at the exact `ScannerSites` scope.
+
+The writer has no inventory, summary, scan-run, delta, host-storage, Graph, or Report API role.
+HTTP routes use `/api/configuration/site-mappings`; do not use `/api/admin/...` because Azure
+Functions reserves the `admin` route segment. Function-level authentication and the server-side
+actor allowlist are both required.
+
+Package and verify without exposing apply through Sites:
+
+```bash
+npm run p7:admin:package
+npm run p7:admin:publish:local
+npm run p7:admin:check:local
+```
+
+The verification calls only inbox and preview. It must reconcile the 8 canonical placements while
+allowing additional inactive/unmapped `ScannerSites` records in the inbox. If Flex Consumption
+indexes the previous package after One Deploy, wait for the active deployment to complete and
+restart only the Configuration Admin Function; confirm the route metadata before retrying.
+
 ## Rollback
 
 Restore the Report API settings to fixture hierarchy and `HierarchySiteMappings`, redeploy the

@@ -95,6 +95,12 @@ export const ENV_FILE_SCOPES = {
     "REPORT_CACHE_TENANT_ID",
     "CONFIG_ADMIN_ALLOWED_ACTORS",
   ],
+  ".env.p7-operator.local": [
+    "P7_AZURE_SUBSCRIPTION_ID",
+    "P7_AZURE_RESOURCE_GROUP",
+    "P7_AZURE_LOCATION",
+    "P7_ASSIGN_MANAGED_IDENTITY_ROLES",
+  ],
 } as const;
 
 export type EnvFileName = keyof typeof ENV_FILE_SCOPES;
@@ -121,7 +127,7 @@ export const ENV_PROFILES = {
   "p7-configuration": [
     ".env.storage.local",
     ".env.configuration-admin.local",
-    ".env.p6-operator.local",
+    ".env.p7-operator.local",
   ],
 } as const satisfies Record<string, readonly EnvFileName[]>;
 
@@ -148,7 +154,7 @@ export function validateScopedEnvKeys(file: EnvFileName, keys: string[]): string
   return keys.filter((key) => KNOWN_ENV_KEYS.has(key) && !allowed.has(key));
 }
 
-const MANAGED_ENV_PREFIX = /^(AZURE_|REPORT_|SCANNER_|P4_|P5_|P6_|CONFIG_ADMIN_)/;
+const MANAGED_ENV_PREFIX = /^(AZURE_|REPORT_|SCANNER_|P4_|P5_|P6_|P7_|CONFIG_ADMIN_)/;
 
 export function unknownManagedEnvKeys(keys: string[]): string[] {
   return keys.filter((key) => MANAGED_ENV_PREFIX.test(key) && !KNOWN_ENV_KEYS.has(key));
