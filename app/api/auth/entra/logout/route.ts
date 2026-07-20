@@ -2,7 +2,10 @@ import { clearCookie, ENTRA_FLOW_COOKIE, ENTRA_SESSION_COOKIE } from "@/src/auth
 
 function logout(request: Request) {
   const url = new URL(request.url);
-  const response = Response.redirect(new URL("/", url.origin), 303);
+  const response = new Response(null, {
+    status: 303,
+    headers: { Location: new URL("/", url.origin).toString() },
+  });
   const secure = url.protocol === "https:";
   response.headers.append("Set-Cookie", clearCookie(ENTRA_SESSION_COOKIE, secure));
   response.headers.append("Set-Cookie", clearCookie(ENTRA_FLOW_COOKIE, secure));

@@ -3,14 +3,19 @@ import { createEntraAuthorizationRequest } from "@/src/auth/entra";
 export async function GET(request: Request) {
   try {
     const authorization = await createEntraAuthorizationRequest(request);
-    const response = Response.redirect(authorization.authorizationUrl, 302);
-    response.headers.append("Set-Cookie", authorization.cookie);
-    response.headers.set("Cache-Control", "no-store");
-    return response;
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: authorization.authorizationUrl.toString(),
+        "Set-Cookie": authorization.cookie,
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     console.error({
       event: "entra-login-start-failed",
       errorType: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message.slice(0, 200) : "Unknown Entra login error",
     });
     return Response.json(
       { error: "entra-authentication-unavailable" },
