@@ -79,6 +79,7 @@ test("baseline wave decision stops on failures or throttling and reviews partial
 class MemorySiteStore implements SiteStore {
   values = new Map<string, GovernedSharePointSite>();
   async get(siteId: string) { return structuredClone(this.values.get(siteId) ?? null); }
+  async listActive() { return structuredClone([...this.values.values()].filter((value) => value.active)); }
   async listScanEnabled() { return structuredClone([...this.values.values()].filter((value) => value.active && value.scanEnabled)); }
   async listByBaselineWave(wave: number) { return structuredClone([...this.values.values()].filter((value) => value.baselineWave === wave)); }
   async save(value: GovernedSharePointSite) { this.values.set(value.id, structuredClone(value)); }

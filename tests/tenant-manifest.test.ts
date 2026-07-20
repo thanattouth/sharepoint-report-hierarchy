@@ -11,6 +11,7 @@ const PILOT_ID = "contoso.sharepoint.com,pilot,web";
 class MemorySiteStore implements SiteStore {
   values = new Map<string, GovernedSharePointSite>();
   async get(siteId: string) { return structuredClone(this.values.get(siteId) ?? null); }
+  async listActive() { return structuredClone([...this.values.values()].filter((site) => site.active)); }
   async listScanEnabled() { return structuredClone([...this.values.values()].filter((site) => site.active && site.scanEnabled)); }
   async listByBaselineWave(wave: number) { return structuredClone([...this.values.values()].filter((site) => site.baselineWave === wave)); }
   async save(site: GovernedSharePointSite) { this.values.set(site.id, structuredClone(site)); }

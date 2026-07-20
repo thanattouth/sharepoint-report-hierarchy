@@ -56,6 +56,9 @@ Enforce all of these on every change:
 
 - Keep domain logic pure and testable under `src/domain` and `src/report`.
 - Keep company hierarchy nodes, flat SharePoint Site records, and hierarchy-to-site mappings as separate contracts. Never embed a Site as a hierarchy child or node field.
+- Model the organization as a forest of independent EVP roots. Enforce the parent chain
+  `EVP -> Department -> Group -> Project`; keep EVP nodes parentless and never traverse from one
+  EVP tree into another.
 - Access fixtures only behind store/data-access contracts. UI components must not import fixture data directly.
 - Extend `InventoryStore`, `HierarchyStore`, `ScanRunStore`, `DeltaStateStore`, and `SensitivityScanner` rather than coupling UI to storage or Graph.
 - Upsert scanner results idempotently by stable file identity.
@@ -287,6 +290,19 @@ For this repository's hosted cross-tenant pilot:
   throttled outcomes, and pause for operator review on partial, locked, or unsupported outcomes.
   Close the baseline window after completion or any stop/review condition. Do not automatically
   retry a terminal baseline run or re-enable timers without a separately reviewed decision.
+- When an operator explicitly chooses to skip a terminal problem/review Site, retain its run and
+  inventory, record a skip state/reason/timestamp, and disable that Site for later schedules. A
+  data-driven coordinator may continue past that audited state, but must never infer a skip from an
+  error automatically. Read the wave and approved states from the registry instead of hard-coding
+  tenant Site IDs or wave size in source code.
+- Publish business placement through a separate persistent hierarchy-to-Site mapping table. Load
+  active registry Sites for validation, but authorize every role—including EVP—only through active
+  mappings inside the assigned node or its visible descendants. Never treat EVP as tenant-wide,
+  expose another EVP tree, or expose an unmapped Site merely because it is active or cached. Fail
+  closed on missing/inactive mapped Sites or multiple canonical placements, and resolve hierarchy
+  scope before inventory reads. Adding a Site requires both a scan-registry operation and an
+  approved canonical business mapping; neither requires a source-code change. Keep zero-Sensitive
+  and never-scanned mapped Sites visible so operators can distinguish coverage from missing scan data.
 
 ## Handoff
 

@@ -64,6 +64,15 @@ test("department persona sees only server-resolved descendant Sites", async () =
   assert.doesNotMatch(html, /Project Ledger|Supply Excellence/);
 });
 
+test("separate EVP persona cannot see another EVP tree", async () => {
+  const response = await render("/?user=orawan%40contoso.com&capability=ReportViewer");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /Digital Ventures/);
+  assert.match(html, /Project Orbit/);
+  assert.doesNotMatch(html, /Commercial Leadership Hub|Project Aurora|Project Ledger/);
+});
+
 test("project persona receives only its server-resolved site", async () => {
   const response = await render("/?user=prach%40contoso.com&capability=ReportViewer");
   const html = await response.text();

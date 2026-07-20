@@ -7,10 +7,10 @@ if (process.argv[2] !== "--apply") throw new Error("Expected explicit --apply");
 const nodeId = process.env.REPORT_PILOT_SITE_NODE_ID?.trim();
 if (!nodeId) throw new Error("REPORT_PILOT_SITE_NODE_ID is required");
 const wave = Number(process.env.P6_REPORT_BASELINE_WAVE ?? "1");
-const expectedSiteCount = Number(process.env.P6_EXPECTED_REPORT_SITE_COUNT);
+const expectedSiteCount = Number(process.env.P6_EXPECTED_COMPLETED_WAVE_SITE_COUNT);
 if (!Number.isInteger(wave) || wave < 1) throw new Error("P6_REPORT_BASELINE_WAVE is invalid");
 if (!Number.isInteger(expectedSiteCount) || expectedSiteCount < 1 || expectedSiteCount > 10) {
-  throw new Error("P6_EXPECTED_REPORT_SITE_COUNT must be an integer from 1 to 10");
+  throw new Error("P6_EXPECTED_COMPLETED_WAVE_SITE_COUNT must be an integer from 1 to 10");
 }
 const graphConfig = loadGraphPilotConfig(process.env);
 const tableConfig = loadAzureTableStoreConfig(process.env);

@@ -20,7 +20,10 @@ import {
   toSiteMappingEntity,
   toSiteSummaryEntity,
 } from "../src/stores/azure-table/codec";
-import { AzureTableInventoryStore } from "../src/stores/azure-table/stores";
+import {
+  AzureTableInventoryStore,
+  AzureTableSiteStore,
+} from "../src/stores/azure-table/stores";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const siteId = "contoso.sharepoint.com,site-collection,site-web";
@@ -101,6 +104,34 @@ test("Azure Table Site registry codec preserves flat scan configuration", () => 
     etag: "W/metadata",
     timestamp: new Date("2026-07-16T00:00:00.000Z"),
   }), site);
+});
+
+test("Azure Table Site registry can list every active Site independently of rollout wave", async () => {
+  let observedFilter = "";
+  const activeSite = {
+    id: siteId,
+    name: "DGCS",
+    hostname: "contoso.sharepoint.com",
+    path: "/sites/DGCS",
+    active: true,
+    scanEnabled: true,
+  };
+  const client = {
+    listEntities(options: { queryOptions?: { filter?: string } }) {
+      observedFilter = options.queryOptions?.filter ?? "";
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield toSiteEntity(tenantId, activeSite);
+        },
+      };
+    },
+  } as unknown as TableClient;
+
+  const sites = await new AzureTableSiteStore(client, tenantId).listActive();
+
+  assert.deepEqual(sites, [activeSite]);
+  assert.match(observedFilter, /active eq true/);
+  assert.doesNotMatch(observedFilter, /baselineWave|scanEnabled/);
 });
 
 test("Site summary materializes distinct reportable counts and round-trips through Table", () => {

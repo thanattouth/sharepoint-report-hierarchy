@@ -57,6 +57,7 @@ class MemoryRunStore implements ScanRunStore {
 class MemorySiteStore implements SiteStore {
   constructor(readonly sites = [SITE]) {}
   async get(siteId: string) { return structuredClone(this.sites.find((site) => site.id === siteId) ?? null); }
+  async listActive() { return structuredClone(this.sites.filter((site) => site.active)); }
   async listScanEnabled() { return structuredClone(this.sites.filter((site) => site.active && site.scanEnabled)); }
   async listByBaselineWave(wave: number) { return structuredClone(this.sites.filter((site) => site.baselineWave === wave)); }
   async save() {}

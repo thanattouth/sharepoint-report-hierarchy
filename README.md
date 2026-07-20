@@ -5,6 +5,10 @@ hierarchy scope ของผู้ใช้ ปัจจุบัน P0–P3 ท
 P4 เชื่อม Graph แบบ bounded ที่ DGCS แล้ว และ P5/P6 แยก scheduled scanner กับ
 cache-only Report API เป็นคนละ Azure Functions/managed identities
 
+Business hierarchy เป็น forest ของหลาย EVP roots โดยแต่ละสายใช้โครงสร้าง
+`EVP -> Department -> Group -> Project` ผู้ใช้ทุกระดับรวมถึง EVP เห็นเฉพาะ Sites
+ที่มี active mapping อยู่ใน node/descendants ของตน ไม่ได้เห็นทั้ง tenant จาก role เพียงอย่างเดียว
+
 ## Local development
 
 ```bash

@@ -57,6 +57,65 @@ test("EVP sees every active descendant site", () => {
   assert.ok(!scope.allowedSiteIds.includes("site-archived"));
 });
 
+test("each EVP sees only mapped Sites below its own root", () => {
+  const otherNodes: GovernanceHierarchyNode[] = [
+    { id: "evp-other", type: "EVP", name: "Other EVP", active: true },
+    { id: "dept-other", parentId: "evp-other", type: "Department", name: "Other Department", active: true },
+    { id: "group-other", parentId: "dept-other", type: "Group", name: "Other Group", active: true },
+    { id: "project-other", parentId: "group-other", type: "Project", name: "Other Project", active: true },
+  ];
+  const otherSite = {
+    id: "site-other",
+    name: "Other EVP Site",
+    hostname: "contoso.sharepoint.com",
+    path: "/sites/other",
+    active: true,
+    scanEnabled: true,
+  };
+  const unmappedSite = {
+    ...otherSite,
+    id: "site-unmapped",
+    name: "Unmapped Site",
+    path: "/sites/unmapped",
+  };
+  const nodes = [...hierarchyNodes, ...otherNodes];
+  const sites = [...sharePointSites, otherSite, unmappedSite];
+  const assignments = [
+    ...hierarchyAssignments,
+    {
+      userUpn: "other-evp@contoso.com",
+      nodeId: "evp-other",
+      businessRole: "EVP" as const,
+      includeDescendants: true,
+      active: true,
+    },
+  ];
+  const mappings = [
+    ...hierarchySiteMappings,
+    { nodeId: "project-other", siteId: otherSite.id, active: true },
+  ];
+
+  const firstEvpScope = resolveHierarchyScope(
+    "nipaporn@contoso.com",
+    nodes,
+    assignments,
+    sites,
+    mappings,
+  );
+  const otherEvpScope = resolveHierarchyScope(
+    "other-evp@contoso.com",
+    nodes,
+    assignments,
+    sites,
+    mappings,
+  );
+
+  assert.ok(!firstEvpScope.allowedSiteIds.includes(otherSite.id));
+  assert.ok(!firstEvpScope.allowedSiteIds.includes(unmappedSite.id));
+  assert.deepEqual(otherEvpScope.allowedSiteIds, [otherSite.id]);
+  assert.ok(!otherEvpScope.visibleNodeIds.includes("evp-corporate"));
+});
+
 test("Department, group and project scopes remain inside their branches", () => {
   assert.deepEqual(
     resolve("anan@contoso.com").allowedSiteIds.sort(),
@@ -85,10 +144,8 @@ test("no assignment and inactive assignment expose no inventory", () => {
 });
 
 test("business assignment without mapped sites is distinct from no assignment", () => {
-  assert.equal(
-    buildReport({ ...source, siteMappings: [] }, request("nipaporn@contoso.com")).state,
-    "no-sites",
-  );
+  assert.equal(buildReport({ ...source, siteMappings: [] }, request("anan@contoso.com")).state, "no-sites");
+  assert.equal(buildReport({ ...source, siteMappings: [] }, request("nipaporn@contoso.com")).state, "no-sites");
 });
 
 test("invalid hierarchy rejects missing parents and cycles", () => {
@@ -105,6 +162,13 @@ test("invalid hierarchy rejects missing parents and cycles", () => {
     { id: "b", parentId: "a", type: "Group", name: "B", active: true },
   ];
   assert.throws(() => validateHierarchyConfiguration(cycle, [], [], []), /cycle detected/);
+  assert.throws(
+    () => validateHierarchyConfiguration([
+      { id: "evp", type: "EVP", name: "EVP", active: true },
+      { id: "project", parentId: "evp", type: "Project", name: "Project", active: true },
+    ], [], [], []),
+    /Project node must have a Group parent/,
+  );
 });
 
 test("SharePoint sites are flat records mapped separately to business nodes", () => {

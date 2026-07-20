@@ -28,11 +28,23 @@ const [evp, project, sibling, noAssignment] = await Promise.all([
   report("kittipong@contoso.com"),
   report("somchai@contoso.com"),
 ]);
-assert.equal(evp.scopeSensitiveCount, 12);
-assert.equal(evp.siteRollups[0]?.siteName, "DGCS");
-assert.equal(evp.latestRun?.status, "partial");
-assert.equal(project.scopeSensitiveCount, 12);
-assert.equal(project.allowedSiteIds.length, 1);
+if (cacheConfig.siteSource === "mapping-table") {
+  const expectedSiteCount = Number(process.env.P6_EXPECTED_REPORT_SITE_COUNT);
+  const requiredSiteName = process.env.P6_REQUIRED_REPORT_SITE_NAME?.trim();
+  assert.ok(Number.isInteger(expectedSiteCount) && expectedSiteCount > 0);
+  assert.equal(evp.siteCount, expectedSiteCount);
+  assert.equal(evp.siteRollups.length, expectedSiteCount);
+  assert.ok(["ready", "zero-sensitive"].includes(evp.state));
+  if (requiredSiteName) {
+    assert.ok(evp.siteRollups.some((site) => site.siteName === requiredSiteName));
+  }
+} else {
+  assert.equal(evp.scopeSensitiveCount, 12);
+  assert.equal(evp.siteRollups[0]?.siteName, "DGCS");
+  assert.equal(evp.latestRun?.status, "partial");
+  assert.equal(project.scopeSensitiveCount, 12);
+  assert.equal(project.allowedSiteIds.length, 1);
+}
 assert.equal(sibling.state, "no-sites");
 assert.equal(noAssignment.state, "no-assignment");
 
@@ -45,6 +57,8 @@ await assert.rejects(
 process.stdout.write(`${JSON.stringify({
   status: "verified",
   cacheMode: cacheConfig.mode,
+  siteSource: cacheConfig.siteSource,
+  evpSiteCount: evp.siteCount,
   evpSensitiveCount: evp.scopeSensitiveCount,
   projectSensitiveCount: project.scopeSensitiveCount,
   latestRunStatus: evp.latestRun?.status,

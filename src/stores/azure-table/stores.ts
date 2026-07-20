@@ -184,6 +184,18 @@ export class AzureTableSiteStore implements SiteStore {
     return sites.sort((left, right) => left.id.localeCompare(right.id));
   }
 
+  async listActive() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteEntity>({
+      queryOptions: {
+        filter: `PartitionKey eq '${odata(partitionKey)}' and active eq true`,
+      },
+    });
+    const sites: GovernedSharePointSite[] = [];
+    for await (const entity of entities) sites.push(fromSiteEntity(entity as SiteEntity));
+    return sites.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
   async listByBaselineWave(wave: number) {
     if (!Number.isInteger(wave) || wave < 1) throw new Error("Baseline wave must be a positive integer");
     const partitionKey = encodeURIComponent(this.tenantId);

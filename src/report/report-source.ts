@@ -63,13 +63,14 @@ export async function loadReportSource(
   let sites: GovernedSharePointSite[];
   let siteMappings: GovernanceHierarchySiteMapping[];
   if (cacheConfig.siteSource === "mapping-table") {
-    siteMappings = await stores.siteMappingStore.listActive();
-    const siteIds = [...new Set(siteMappings.map((mapping) => mapping.siteId))];
-    const resolvedSites = await Promise.all(siteIds.map((siteId) => stores.siteStore.get(siteId)));
-    if (resolvedSites.some((site) => !site || !site.active)) {
+    [siteMappings, sites] = await Promise.all([
+      stores.siteMappingStore.listActive(),
+      stores.siteStore.listActive(),
+    ]);
+    const activeSiteIds = new Set(sites.map((site) => site.id));
+    if (siteMappings.some((mapping) => !activeSiteIds.has(mapping.siteId))) {
       throw new Error("An active hierarchy mapping references a missing or inactive Site");
     }
-    sites = resolvedSites.filter((site) => site !== null);
   } else {
     if (!nodes.some((node) => node.id === cacheConfig.pilotSiteNodeId && node.active)) {
       throw new Error("REPORT_PILOT_SITE_NODE_ID must reference an active hierarchy node");

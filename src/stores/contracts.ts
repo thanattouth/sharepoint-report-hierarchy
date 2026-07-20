@@ -43,6 +43,7 @@ export interface SiteSummaryStore {
 
 export interface SiteStore {
   get(siteId: string): Promise<GovernedSharePointSite | null>;
+  listActive(): Promise<GovernedSharePointSite[]>;
   listScanEnabled(): Promise<GovernedSharePointSite[]>;
   listByBaselineWave(wave: number): Promise<GovernedSharePointSite[]>;
   save(site: GovernedSharePointSite): Promise<void>;

@@ -31,6 +31,7 @@ function outputValue(outputs: unknown, name: string) {
 const subscriptionId = required("P6_AZURE_SUBSCRIPTION_ID");
 const resourceGroup = required("P6_AZURE_RESOURCE_GROUP");
 const expectedSiteCount = Number(required("P6_EXPECTED_REPORT_SITE_COUNT"));
+const requiredSiteName = process.env.P6_REQUIRED_REPORT_SITE_NAME?.trim();
 if (!Number.isInteger(expectedSiteCount) || expectedSiteCount < 1 || expectedSiteCount > 100) {
   throw new Error("P6_EXPECTED_REPORT_SITE_COUNT is invalid");
 }
@@ -72,6 +73,10 @@ if (result.siteCount !== expectedSiteCount
   || !["ready", "zero-sensitive"].includes(String(result.state))) {
   throw new Error("Report API multi-Site response is invalid");
 }
+if (requiredSiteName && !(result.siteRollups as Array<Record<string, unknown>>)
+  .some((site) => site.siteName === requiredSiteName)) {
+  throw new Error(`Report API response is missing required Site ${requiredSiteName}`);
+}
 process.stdout.write(`${JSON.stringify({
   status: "verified",
   siteCount: result.siteCount,
@@ -79,4 +84,5 @@ process.stdout.write(`${JSON.stringify({
   reportState: result.state,
   sensitiveCount: result.scopeSensitiveCount,
   libraryCount: result.libraryCount,
+  requiredSiteName: requiredSiteName || undefined,
 })}\n`);

@@ -259,3 +259,16 @@ for extraction and cache persistence.
 Do not rerun the original candidate-manifest writer expecting it to restore the ten-Site wave. It
 must treat these reviewed exclusions as a conflict and fail closed unless a separate re-inclusion
 change is explicitly approved.
+## Baseline skip and report publication
+
+- A problem Site may be skipped only after an explicit operator decision. Preserve its run and
+  cached inventory, set `baselineState=skipped`, record the reason/time, and set
+  `active=false` plus `scanEnabled=false`.
+- Resume through the deterministic baseline coordinator. It reads the wave membership from
+  `ScannerSites`, counts audited skipped records separately, and never retries their terminal run.
+- The Report API may read active `ScannerSites` rows to validate configuration, but every report
+  role—including EVP—receives Sites only through active `HierarchySiteMappings` inside its assigned
+  node or descendants. Each EVP is the root of an independent business tree, not a tenant-wide role.
+- Keep unmapped, inactive, excluded, and skipped Sites hidden from all report users. Preserve them
+  for scanner/audit operations as appropriate, then publish them only after an operator adds the
+  approved canonical business placement.
