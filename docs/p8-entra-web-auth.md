@@ -61,7 +61,13 @@ The inbox and preview are also protected, not only Apply. A user without a valid
 5. Preview one test Site placement, then Apply only when the selected target is intended.
 6. Confirm the placement version increments and `updatedBy`/audit actor equals the signed-in UPN.
 7. In a second session without the role, verify the admin page and all three mapping APIs fail
-   closed.
+closed.
+
+Logout is an application-session operation exposed only as POST. It clears the encrypted Entra
+session cookie, the pending authorization-flow cookie, and the separate protected Graph-token
+cookie, then redirects to the public `/auth/signed-out` confirmation page. Do not redirect directly
+to the protected report root because that immediately starts a new Entra flow and makes logout look
+unsuccessful. This operation does not sign the user out of Microsoft 365 globally.
 
 Do not use an Azure CLI token, a selectable persona, a browser-supplied UPN, or the Sites owner
 identity as a substitute for the Entra application session.

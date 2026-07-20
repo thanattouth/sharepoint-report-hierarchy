@@ -4,7 +4,7 @@ function logout(request: Request) {
   const url = new URL(request.url);
   const response = new Response(null, {
     status: 303,
-    headers: { Location: new URL("/", url.origin).toString() },
+    headers: { Location: new URL("/auth/signed-out", url.origin).toString() },
   });
   const secure = url.protocol === "https:";
   response.headers.append("Set-Cookie", clearCookie(ENTRA_SESSION_COOKIE, secure));
@@ -12,10 +12,6 @@ function logout(request: Request) {
   response.headers.append("Set-Cookie", clearCookie(ENTRA_GRAPH_COOKIE, secure));
   response.headers.set("Cache-Control", "no-store");
   return response;
-}
-
-export async function GET(request: Request) {
-  return logout(request);
 }
 
 export async function POST(request: Request) {

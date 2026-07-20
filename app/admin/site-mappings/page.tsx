@@ -48,7 +48,7 @@ export default async function SiteMappingAdminPage() {
             <span className="avatar">{initials(administrator.displayName)}</span>
             <span><strong>{administrator.displayName}</strong><small>ReportAdmin · Entra verified</small></span>
           </div>
-          <Link className="admin-sign-out" href="/api/auth/entra/logout">Sign out</Link>
+          <form className="logout-form" method="post" action="/api/auth/entra/logout"><button className="admin-sign-out" type="submit">Sign out</button></form>
         </div>
       </header>
 

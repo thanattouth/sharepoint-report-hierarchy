@@ -203,6 +203,7 @@ export default async function Home({
             <span className="avatar">{persona.initials}</span>
             <span><strong>{persona.name}</strong><small>{report?.capability ?? capability}</small></span>
           </div>
+          {entraSession ? <form className="logout-form" method="post" action="/api/auth/entra/logout"><button className="admin-sign-out" type="submit">Sign out</button></form> : null}
         </div>
       </header>
 

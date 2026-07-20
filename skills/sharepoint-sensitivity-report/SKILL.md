@@ -364,6 +364,10 @@ For this repository's hosted cross-tenant pilot:
   display label; Entra remains the membership source of truth.
 - Keep the Group Picker feature disabled until admin consent is explicitly approved and completed.
   Disabling the picker must not invalidate already-persisted group assignments.
+- Implement application logout as POST. Clear the session, authorization-flow, and Graph-token
+  cookies together, return `Cache-Control: no-store`, and redirect to a public signed-out
+  confirmation instead of the protected report root. Do not silently turn application logout into
+  tenant-wide Microsoft 365 logout.
 
 Report:
 

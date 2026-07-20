@@ -772,8 +772,10 @@ td small { margin-top: 3px; color: var(--neutral); max-width: 260px; overflow: h
   font-weight: 500;
 }
 .admin-boundary-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
-.admin-sign-out { color: var(--text-secondary); font-size: 10px; font-weight: 500; }
+.logout-form { margin: 0; }
+.admin-sign-out { padding: 0; border: 0; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 10px; font-weight: 500; cursor: pointer; }
 .admin-sign-out:hover { color: var(--primary); }
+.auth-state-mark-success { border-color: #b9d7d2; background: #f1f8f7; color: var(--primary); }
 .admin-main { max-width: 1440px; }
 .admin-page-heading { align-items: center; padding-block: 48px 36px; }
 .admin-page-heading h1 { font-size: clamp(42px, 5vw, 56px); }

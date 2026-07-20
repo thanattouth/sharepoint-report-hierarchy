@@ -112,3 +112,12 @@ test("server-renders an Entra authorization denial state without sensitive confi
   assert.match(html, /ReportAdmin/);
   assert.doesNotMatch(html, /CONFIG_ADMIN_API_FUNCTION_KEY|x-functions-key|client-secret|session-secret/);
 });
+
+test("server-renders a public signed-out confirmation without restarting Entra login", async () => {
+  const response = await render("/auth/signed-out");
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /SESSION CLEARED/);
+  assert.match(html, /ออกจากระบบเรียบร้อยแล้ว/);
+  assert.match(html, /Sign in อีกครั้ง/);
+});
