@@ -267,7 +267,7 @@ change is explicitly approved.
 - Resume through the deterministic baseline coordinator. It reads the wave membership from
   `ScannerSites`, counts audited skipped records separately, and never retries their terminal run.
 - The Report API may read active `ScannerSites` rows to validate configuration, but every report
-  role—including EVP—receives Sites only through active `HierarchySiteMappings` inside its assigned
+role—including EVP—receives Sites only through active canonical `HierarchySitePlacements` inside its assigned
   node or descendants. Each EVP is the root of an independent business tree, not a tenant-wide role.
 - Keep unmapped, inactive, excluded, and skipped Sites hidden from all report users. Preserve them
   for scanner/audit operations as appropriate, then publish them only after an operator adds the

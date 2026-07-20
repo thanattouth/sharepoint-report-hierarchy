@@ -66,7 +66,10 @@ test("Azure Table configuration fails closed and supplies schema table names", (
   assert.equal(config.deltaStateTableName, "SensitivityDeltaState");
   assert.equal(config.siteSummaryTableName, "SiteLabelSummary");
   assert.equal(config.siteTableName, "ScannerSites");
-  assert.equal(config.siteMappingTableName, "HierarchySiteMappings");
+  assert.equal(config.siteMappingTableName, "HierarchySitePlacements");
+  assert.equal(config.hierarchyNodeTableName, "HierarchyNodes");
+  assert.equal(config.scopeAssignmentTableName, "ScopeAssignments");
+  assert.equal(config.siteMappingAuditTableName, "HierarchySiteMappingAudit");
   assert.deepEqual(config.auth, { mode: "azure-cli", tenantId });
   assert.throws(
     () => loadAzureTableStoreConfig({
@@ -80,9 +83,18 @@ test("Azure Table configuration fails closed and supplies schema table names", (
 });
 
 test("Azure Table hierarchy-to-Site mapping codec preserves the explicit placement", () => {
-  const mapping = { nodeId: "evp-corporate", siteId, active: true };
+  const mapping = {
+    nodeId: "evp-corporate",
+    siteId,
+    active: true,
+    version: 1,
+    updatedAt: "2026-07-20T00:00:00.000Z",
+    updatedBy: "admin@contoso.com",
+  };
+  const entity = toSiteMappingEntity(tenantId, mapping);
+  assert.equal(entity.rowKey, encodeURIComponent(siteId));
   assert.deepEqual(fromSiteMappingEntity({
-    ...toSiteMappingEntity(tenantId, mapping),
+    ...entity,
     etag: "W/metadata",
     timestamp: new Date("2026-07-16T00:00:00.000Z"),
   }), mapping);

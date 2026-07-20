@@ -1,7 +1,10 @@
 import type {
   DeltaState,
   GovernedSharePointSite,
+  GovernanceHierarchyAssignment,
+  GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  SiteMappingAuditEvent,
   SensitivityInventoryItem,
   SensitivityScanRun,
   SiteSensitivitySummary,
@@ -42,6 +45,22 @@ type SiteEntity = Omit<GovernedSharePointSite, "scanLibraryIds"> & {
 };
 
 type SiteMappingEntity = GovernanceHierarchySiteMapping & {
+  partitionKey: string;
+  rowKey: string;
+};
+
+type HierarchyNodeEntity = GovernanceHierarchyNode & {
+  partitionKey: string;
+  rowKey: string;
+};
+
+type ScopeAssignmentEntity = Omit<GovernanceHierarchyAssignment, "id"> & {
+  id: string;
+  partitionKey: string;
+  rowKey: string;
+};
+
+type SiteMappingAuditEntity = SiteMappingAuditEvent & {
   partitionKey: string;
   rowKey: string;
 };
@@ -218,11 +237,66 @@ export function toSiteMappingEntity(
   tenantId: string,
   mapping: GovernanceHierarchySiteMapping,
 ): SiteMappingEntity {
-  return {
+  return withoutUndefined({
     ...mapping,
     partitionKey: encodedKey(tenantId),
-    rowKey: `${encodedKey(mapping.nodeId)}|${encodedKey(mapping.siteId)}`,
-  };
+    // One entity per Site makes the canonical-placement invariant atomic.
+    rowKey: encodedKey(mapping.siteId),
+  });
+}
+
+export function toHierarchyNodeEntity(
+  tenantId: string,
+  node: GovernanceHierarchyNode,
+): HierarchyNodeEntity {
+  return withoutUndefined({
+    ...node,
+    partitionKey: encodedKey(tenantId),
+    rowKey: encodedKey(node.id),
+  });
+}
+
+export function fromHierarchyNodeEntity(
+  entity: HierarchyNodeEntity & AzureTableServiceMetadata,
+): GovernanceHierarchyNode {
+  return entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
+}
+
+export function toScopeAssignmentEntity(
+  tenantId: string,
+  assignment: GovernanceHierarchyAssignment,
+): ScopeAssignmentEntity {
+  const id = assignment.id?.trim();
+  if (!id) throw new Error("Scope assignment ID is required for persistence");
+  return withoutUndefined({
+    ...assignment,
+    id,
+    partitionKey: encodedKey(tenantId),
+    rowKey: encodedKey(id),
+  }) as ScopeAssignmentEntity;
+}
+
+export function fromScopeAssignmentEntity(
+  entity: ScopeAssignmentEntity & AzureTableServiceMetadata,
+): GovernanceHierarchyAssignment {
+  return entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
+}
+
+export function toSiteMappingAuditEntity(
+  tenantId: string,
+  event: SiteMappingAuditEvent,
+): SiteMappingAuditEntity {
+  return withoutUndefined({
+    ...event,
+    partitionKey: `${encodedKey(tenantId)}|${encodedKey(event.siteId)}`,
+    rowKey: `${encodedKey(event.occurredAt)}|${encodedKey(event.id)}`,
+  });
+}
+
+export function fromSiteMappingAuditEntity(
+  entity: SiteMappingAuditEntity & AzureTableServiceMetadata,
+): SiteMappingAuditEvent {
+  return entityProperties(entity, ["partitionKey", "rowKey", "etag", "timestamp"] as const);
 }
 
 export function fromSiteMappingEntity(
@@ -237,8 +311,11 @@ export function fromSiteMappingEntity(
 export type {
   DeltaStateEntity,
   InventoryEntity,
+  HierarchyNodeEntity,
   ScanRunEntity,
+  ScopeAssignmentEntity,
   SiteEntity,
   SiteMappingEntity,
+  SiteMappingAuditEntity,
   SiteSummaryEntity,
 };

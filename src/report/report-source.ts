@@ -24,7 +24,7 @@ export async function loadReportSource(
   request: ReportRequest,
   cacheConfig: ReportCacheConfig,
 ): Promise<ReportSource> {
-  const [nodes, assignments] = await Promise.all([
+  let [nodes, assignments] = await Promise.all([
     hierarchyStore.getNodes(),
     hierarchyStore.getAssignments(),
   ]);
@@ -60,6 +60,13 @@ export async function loadReportSource(
     credential: createAzureTableCredential(cacheConfig.table.auth),
     tenantId: cacheConfig.cacheTenantId,
   });
+  if (cacheConfig.hierarchySource === "table") {
+    [nodes, assignments] = await Promise.all([
+      stores.hierarchyNodeStore.listAll(),
+      stores.scopeAssignmentStore.listAll(),
+    ]);
+    if (nodes.length === 0) throw new Error("Persistent hierarchy contains no nodes");
+  }
   let sites: GovernedSharePointSite[];
   let siteMappings: GovernanceHierarchySiteMapping[];
   if (cacheConfig.siteSource === "mapping-table") {

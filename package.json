@@ -44,6 +44,8 @@
     "p6:map-completed-baseline:local": "node --env-file=.env.p4.local --import tsx scripts/p6-map-completed-baseline.ts --apply",
     "p6:map-site:local": "node --env-file=.env.p4.local --import tsx scripts/p6-map-site.ts --apply",
     "p6:api:check-multi-site:local": "node --env-file=.env.p4.local --import tsx scripts/p6-check-report-api.ts",
+    "p7:config:migrate:local": "node --env-file=.env.p4.local --import tsx scripts/p7-migrate-configuration.ts",
+    "p7:config:migrate:apply:local": "node --env-file=.env.p4.local --import tsx scripts/p7-migrate-configuration.ts --apply",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

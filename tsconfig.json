@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@azure/functions": ["./services/report-cache-api/node_modules/@azure/functions"]
     }
   },
   "include": [

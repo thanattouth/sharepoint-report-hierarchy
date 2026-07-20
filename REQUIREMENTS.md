@@ -1,6 +1,6 @@
 # Requirements Book: SharePoint Sensitivity Label Report
 
-Version: **1.2 (Multi-EVP Forest Scope)**
+Version: **1.3 (Persistent Business Scope Configuration)**
 Date: **2026-07-20**
 Language: **Thai with English technical terms**  
 Intended destination: **New standalone repository and new Codex thread**
@@ -18,7 +18,7 @@ Intended destination: **New standalone repository and new Codex thread**
 ระบบต้องมีคุณสมบัติหลักดังนี้:
 
 - เป็นแอปใหม่สำหรับรายงานอย่างเดียว ไม่รวมอยู่ในหน้า Reviewer ของระบบเดิม
-- ผู้ใช้แต่ละคนเห็นข้อมูลตาม hierarchy ที่ถูก assign ด้วย UPN
+- ผู้ใช้แต่ละคนเห็นข้อมูลตาม hierarchy ที่ assign ให้ Entra user หรือ group
 - SharePoint sites เป็น flat inventory แยกจาก hierarchy ของบริษัท และเชื่อมกันผ่าน explicit mapping
 - EVP เห็นทุก site ที่ map อยู่ใต้ node และ descendants ของตนเท่านั้น ไม่ใช่ทั้ง tenant
 - Department/Group/Project เห็นเฉพาะ branch ของตนและ descendants ที่ได้รับอนุญาต
@@ -113,10 +113,10 @@ Scheduled scanner เป็น background service แยกจาก Report web 
 
 ### 5.3 Hierarchy assignment
 
-Hierarchy assignment เป็นตัวกำหนดว่า UPN ใดเห็น SharePoint sites ใด
+Hierarchy assignment เป็นตัวกำหนดว่า Entra user หรือ group ใดเห็น SharePoint sites ใด
 
 ```text
-Signed-in UPN
+Signed-in Entra principal (user object ID/UPN and group object IDs)
 -> active assignments
 -> assigned node(s)
 -> include descendants เมื่อกำหนดไว้
@@ -125,7 +125,7 @@ Signed-in UPN
 -> cached inventory filtered to allowed sites
 ```
 
-ผู้ใช้ต้องมีทั้ง capability ที่อนุญาตให้ดู report และ active hierarchy assignment จึงจะเห็นข้อมูล หากมี `ReportViewer` แต่ไม่มี assignment ต้องเห็น empty/denied state และห้ามเห็น inventory
+ผู้ใช้ต้องมีทั้ง capability ที่อนุญาตให้ดู report และ active hierarchy assignment จึงจะเห็นข้อมูล หากมี `ReportViewer` แต่ไม่มี assignment ต้องเห็น empty/denied state และห้ามเห็น inventory Production ควรใช้ immutable Entra object ID เป็นหลัก โดยเก็บ UPN/display name เพื่อค้นหาและแสดงผลเท่านั้น
 
 ## 6. Hierarchy Model
 
@@ -195,7 +195,7 @@ root อื่นหรือ Site ที่ยังไม่มี business ma
 - Site hostname/path ไม่ถูกต้อง
 - Mapping ที่อ้าง node หรือ Site ไม่มีอยู่
 - Duplicate mapping หรือ Site มีหลาย active canonical placements
-- UPN ว่างหรือรูปแบบไม่ถูกต้อง
+- User assignment ที่ไม่มี Entra object ID หรือ UPN ที่ถูกต้อง และ Group assignment ที่ไม่มี Entra object ID
 - Parent type ผิดลำดับจาก `EVP -> Department -> Group -> Project`
 - EVP ที่มี parent หรือ node ระดับอื่นที่ไม่มี parent ตามชนิดของตน
 

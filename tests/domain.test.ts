@@ -138,6 +138,32 @@ test("multiple assignments form a deduplicated union", () => {
   assert.equal(report.scopeSensitiveCount, 7);
 });
 
+test("Entra group assignment grants the same descendant scope without Site ownership", () => {
+  const groupAssignment = {
+    id: "assignment-group-commercial",
+    principalType: "Group" as const,
+    principalObjectId: "group-commercial-readers",
+    principalDisplayName: "Commercial readers",
+    nodeId: "dept-commercial",
+    businessRole: "Delegate" as const,
+    includeDescendants: true,
+    active: true,
+  };
+  const scope = resolveHierarchyScope(
+    {
+      userUpn: "group-member@contoso.com",
+      groupObjectIds: ["group-commercial-readers"],
+    },
+    hierarchyNodes,
+    [groupAssignment],
+    sharePointSites,
+    hierarchySiteMappings,
+  );
+  assert.ok(scope.allowedSiteIds.includes("site-aurora"));
+  assert.ok(!scope.allowedSiteIds.includes("site-ledger"));
+  assert.ok(!scope.allowedSiteIds.includes("site-orbit"));
+});
+
 test("no assignment and inactive assignment expose no inventory", () => {
   assert.equal(buildReport(source, request("somchai@contoso.com")).state, "no-assignment");
   assert.equal(buildReport(source, request("inactive@contoso.com")).state, "no-assignment");

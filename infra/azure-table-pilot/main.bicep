@@ -68,6 +68,28 @@ resource hierarchySiteMappingTable 'Microsoft.Storage/storageAccounts/tableServi
   name: 'HierarchySiteMappings'
 }
 
+// Canonical V2 placement: PartitionKey = tenant, RowKey = Site ID.
+// Keep HierarchySiteMappings during migration so rollback does not require data restoration.
+resource hierarchySitePlacementTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'HierarchySitePlacements'
+}
+
+resource hierarchyNodeTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'HierarchyNodes'
+}
+
+resource scopeAssignmentTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'ScopeAssignments'
+}
+
+resource hierarchySiteMappingAuditTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: tableService
+  name: 'HierarchySiteMappingAudit'
+}
+
 var storageTableDataContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
@@ -91,4 +113,8 @@ output deltaStateTableName string = deltaStateTable.name
 output siteLabelSummaryTableName string = siteLabelSummaryTable.name
 output scannerSiteTableName string = scannerSiteTable.name
 output hierarchySiteMappingTableName string = hierarchySiteMappingTable.name
+output hierarchySitePlacementTableName string = hierarchySitePlacementTable.name
+output hierarchyNodeTableName string = hierarchyNodeTable.name
+output scopeAssignmentTableName string = scopeAssignmentTable.name
+output hierarchySiteMappingAuditTableName string = hierarchySiteMappingAuditTable.name
 output tableDataRoleAssignmentManagedByDeployment bool = assignTableDataRole

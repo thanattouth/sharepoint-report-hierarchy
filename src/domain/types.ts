@@ -28,7 +28,12 @@ export type GovernanceHierarchySiteMapping = {
   nodeId: string;
   siteId: string;
   active: boolean;
+  version?: number;
+  updatedAt?: string;
+  updatedBy?: string;
 };
+
+export type GovernancePrincipalType = "User" | "Group";
 
 export type BusinessRole =
   | "EVP"
@@ -38,11 +43,32 @@ export type BusinessRole =
   | "Delegate";
 
 export type GovernanceHierarchyAssignment = {
-  userUpn: string;
+  id?: string;
+  principalType?: GovernancePrincipalType;
+  principalObjectId?: string;
+  principalDisplayName?: string;
+  userUpn?: string;
   nodeId: string;
   businessRole: BusinessRole;
   includeDescendants: boolean;
   active: boolean;
+};
+
+export type GovernancePrincipalContext = {
+  userUpn: string;
+  userObjectId?: string;
+  groupObjectIds?: string[];
+};
+
+export type SiteMappingAuditEvent = {
+  id: string;
+  siteId: string;
+  previousNodeId?: string;
+  nodeId: string;
+  action: "assigned" | "moved" | "reactivated" | "deactivated";
+  actor: string;
+  occurredAt: string;
+  version: number;
 };
 
 export type AppCapability = "ReportAdmin" | "ReportViewer";

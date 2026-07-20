@@ -3,6 +3,7 @@ import type {
   GovernanceHierarchyAssignment,
   GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
+  GovernancePrincipalContext,
 } from "./types";
 
 const UPN_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -70,8 +71,13 @@ export function validateHierarchyConfiguration(
   nodes.forEach((node) => visit(node.id));
 
   for (const assignment of assignments) {
-    if (!UPN_PATTERN.test(assignment.userUpn)) {
-      issues.push(`invalid UPN: ${assignment.userUpn || "<empty>"}`);
+    const principalType = assignment.principalType ?? "User";
+    if (principalType === "User" && !assignment.principalObjectId
+      && !UPN_PATTERN.test(assignment.userUpn ?? "")) {
+      issues.push(`User assignment requires an object ID or valid UPN: ${assignment.id ?? assignment.nodeId}`);
+    }
+    if (principalType === "Group" && !assignment.principalObjectId?.trim()) {
+      issues.push(`Group assignment requires an object ID: ${assignment.id ?? assignment.nodeId}`);
     }
     if (!ids.has(assignment.nodeId)) {
       issues.push(`assignment references missing node: ${assignment.nodeId}`);
@@ -114,7 +120,7 @@ export type ResolvedScope = {
 };
 
 export function resolveHierarchyScope(
-  userUpn: string,
+  principal: string | GovernancePrincipalContext,
   nodes: GovernanceHierarchyNode[],
   assignments: GovernanceHierarchyAssignment[],
   sites: GovernedSharePointSite[],
@@ -130,10 +136,14 @@ export function resolveHierarchyScope(
     children.set(node.parentId, siblings);
   }
 
+  const context: GovernancePrincipalContext = typeof principal === "string"
+    ? { userUpn: principal }
+    : principal;
+  const groupObjectIds = new Set(context.groupObjectIds ?? []);
   const activeAssignments = assignments.filter(
     (assignment) =>
       assignment.active &&
-      assignment.userUpn.toLowerCase() === userUpn.toLowerCase() &&
+      assignmentMatchesPrincipal(assignment, context, groupObjectIds) &&
       byId.get(assignment.nodeId)?.active,
   );
   const visible = new Set<string>();
@@ -163,6 +173,21 @@ export function resolveHierarchyScope(
     visibleNodeIds: [...visible],
     allowedSiteIds: [...allowedSites],
   };
+}
+
+function assignmentMatchesPrincipal(
+  assignment: GovernanceHierarchyAssignment,
+  context: GovernancePrincipalContext,
+  groupObjectIds: Set<string>,
+): boolean {
+  if ((assignment.principalType ?? "User") === "Group") {
+    return Boolean(assignment.principalObjectId && groupObjectIds.has(assignment.principalObjectId));
+  }
+  if (assignment.principalObjectId && context.userObjectId) {
+    return assignment.principalObjectId === context.userObjectId;
+  }
+  return Boolean(assignment.userUpn
+    && assignment.userUpn.toLowerCase() === context.userUpn.toLowerCase());
 }
 
 export function siteIdsUnderNode(

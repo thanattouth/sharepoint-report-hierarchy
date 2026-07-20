@@ -40,10 +40,13 @@ test("report cache defaults to fixtures and Azure mode fails closed", () => {
   assert.deepEqual([...config.reportableLabelIds], [
     "22222222-2222-4222-8222-222222222222",
   ]);
-  assert.equal(loadReportCacheConfig({
+  const persistentConfig = loadReportCacheConfig({
     ...azureEnv(),
     REPORT_SITE_SOURCE: "mapping-table",
-  }).mode, "azure-table");
+    REPORT_HIERARCHY_SOURCE: "table",
+  });
+  assert.equal(persistentConfig.mode, "azure-table");
+  assert.equal(persistentConfig.mode === "azure-table" && persistentConfig.hierarchySource, "table");
   assert.throws(
     () => loadReportCacheConfig({ ...azureEnv(), REPORT_SITE_SOURCE: "unsafe" }),
     /REPORT_SITE_SOURCE/,

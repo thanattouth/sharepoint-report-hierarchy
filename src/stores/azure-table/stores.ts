@@ -8,40 +8,55 @@ import type {
   DeltaState,
   DeletedInventoryIdentity,
   GovernedSharePointSite,
+  GovernanceHierarchyAssignment,
+  GovernanceHierarchyNode,
   GovernanceHierarchySiteMapping,
   SensitivityInventoryItem,
   SensitivityScanRun,
   SiteSensitivitySummary,
+  SiteMappingAuditEvent,
 } from "../../domain/types";
 import type {
   DeltaStateStore,
   InventoryStore,
+  HierarchyNodeStore,
   ScanRunStore,
   SiteStore,
   SiteMappingStore,
+  SiteMappingAuditStore,
   SiteSummaryStore,
+  ScopeAssignmentStore,
 } from "../contracts";
 import type { AzureTableStoreConfig } from "./config";
 import {
   fromDeltaStateEntity,
   fromInventoryEntity,
+  fromHierarchyNodeEntity,
   fromScanRunEntity,
   fromSiteEntity,
   fromSiteMappingEntity,
+  fromSiteMappingAuditEntity,
   fromSiteSummaryEntity,
   inventoryPartitionKey,
   inventoryRowKey,
   toDeltaStateEntity,
   toInventoryEntity,
+  toHierarchyNodeEntity,
   toScanRunEntity,
   toSiteEntity,
   toSiteMappingEntity,
+  toSiteMappingAuditEntity,
+  toScopeAssignmentEntity,
+  fromScopeAssignmentEntity,
   toSiteSummaryEntity,
   type DeltaStateEntity,
   type InventoryEntity,
+  type HierarchyNodeEntity,
   type ScanRunEntity,
   type SiteEntity,
   type SiteMappingEntity,
+  type SiteMappingAuditEntity,
+  type ScopeAssignmentEntity,
   type SiteSummaryEntity,
 } from "./codec";
 
@@ -159,6 +174,16 @@ export class AzureTableSiteStore implements SiteStore {
     private readonly tenantId: string,
   ) {}
 
+  async listAll() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteEntity>({
+      queryOptions: { filter: `PartitionKey eq '${odata(partitionKey)}'` },
+    });
+    const sites: GovernedSharePointSite[] = [];
+    for await (const entity of entities) sites.push(fromSiteEntity(entity as SiteEntity));
+    return sites.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
   async get(siteId: string) {
     try {
       const entity = await this.client.getEntity<SiteEntity>(
@@ -220,6 +245,16 @@ export class AzureTableSiteMappingStore implements SiteMappingStore {
     private readonly tenantId: string,
   ) {}
 
+  async listAll() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<SiteMappingEntity>({
+      queryOptions: { filter: `PartitionKey eq '${odata(partitionKey)}'` },
+    });
+    const mappings: GovernanceHierarchySiteMapping[] = [];
+    for await (const entity of entities) mappings.push(fromSiteMappingEntity(entity as SiteMappingEntity));
+    return mappings.sort((left, right) => left.siteId.localeCompare(right.siteId));
+  }
+
   async listActive() {
     const partitionKey = encodeURIComponent(this.tenantId);
     const entities = this.client.listEntities<SiteMappingEntity>({
@@ -235,11 +270,96 @@ export class AzureTableSiteMappingStore implements SiteMappingStore {
       left.nodeId.localeCompare(right.nodeId) || left.siteId.localeCompare(right.siteId));
   }
 
-  async save(mapping: GovernanceHierarchySiteMapping) {
+  async get(siteId: string) {
+    try {
+      const entity = await this.client.getEntity<SiteMappingEntity>(
+        encodeURIComponent(this.tenantId),
+        encodeURIComponent(siteId),
+      );
+      return fromSiteMappingEntity(entity as SiteMappingEntity);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async save(mapping: GovernanceHierarchySiteMapping, expectedVersion?: number) {
     if (!mapping.nodeId.trim() || !mapping.siteId.trim()) {
       throw new Error("Hierarchy Site mapping requires non-empty node and Site IDs");
     }
-    await this.client.upsertEntity(toSiteMappingEntity(this.tenantId, mapping), "Replace");
+    const entity = toSiteMappingEntity(this.tenantId, mapping);
+    if (expectedVersion === undefined) {
+      await this.client.upsertEntity(entity, "Replace");
+      return;
+    }
+    if (expectedVersion === 0) {
+      await this.client.createEntity(entity);
+      return;
+    }
+    const current = await this.client.getEntity<SiteMappingEntity>(
+      entity.partitionKey,
+      entity.rowKey,
+    );
+    if ((current.version ?? 0) !== expectedVersion) {
+      throw new Error(`Site mapping version conflict for ${mapping.siteId}`);
+    }
+    await this.client.updateEntity(entity, "Replace", { etag: current.etag });
+  }
+}
+
+export class AzureTableHierarchyNodeStore implements HierarchyNodeStore {
+  constructor(private readonly client: TableClient, private readonly tenantId: string) {}
+
+  async listAll() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<HierarchyNodeEntity>({
+      queryOptions: { filter: `PartitionKey eq '${odata(partitionKey)}'` },
+    });
+    const nodes: GovernanceHierarchyNode[] = [];
+    for await (const entity of entities) nodes.push(fromHierarchyNodeEntity(entity as HierarchyNodeEntity));
+    return nodes.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  async save(node: GovernanceHierarchyNode) {
+    if (!node.id.trim() || !node.name.trim()) throw new Error("Hierarchy node ID and name are required");
+    await this.client.upsertEntity(toHierarchyNodeEntity(this.tenantId, node), "Replace");
+  }
+}
+
+export class AzureTableScopeAssignmentStore implements ScopeAssignmentStore {
+  constructor(private readonly client: TableClient, private readonly tenantId: string) {}
+
+  async listAll() {
+    const partitionKey = encodeURIComponent(this.tenantId);
+    const entities = this.client.listEntities<ScopeAssignmentEntity>({
+      queryOptions: { filter: `PartitionKey eq '${odata(partitionKey)}'` },
+    });
+    const assignments: GovernanceHierarchyAssignment[] = [];
+    for await (const entity of entities) assignments.push(fromScopeAssignmentEntity(entity as ScopeAssignmentEntity));
+    return assignments.sort((left, right) => (left.id ?? "").localeCompare(right.id ?? ""));
+  }
+
+  async save(assignment: GovernanceHierarchyAssignment) {
+    await this.client.upsertEntity(toScopeAssignmentEntity(this.tenantId, assignment), "Replace");
+  }
+}
+
+export class AzureTableSiteMappingAuditStore implements SiteMappingAuditStore {
+  constructor(private readonly client: TableClient, private readonly tenantId: string) {}
+
+  async listRecent(siteId?: string) {
+    const tenantKey = encodeURIComponent(this.tenantId);
+    const filter = siteId
+      ? `PartitionKey eq '${odata(`${tenantKey}|${encodeURIComponent(siteId)}`)}'`
+      : `PartitionKey ge '${odata(`${tenantKey}|`)}' and PartitionKey lt '${odata(`${tenantKey}|~`)}'`;
+    const entities = this.client.listEntities<SiteMappingAuditEntity>({ queryOptions: { filter } });
+    const events: SiteMappingAuditEvent[] = [];
+    for await (const entity of entities) events.push(fromSiteMappingAuditEntity(entity as SiteMappingAuditEntity));
+    return events.sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 100);
+  }
+
+  async save(event: SiteMappingAuditEvent) {
+    await this.client.createEntity(toSiteMappingAuditEntity(this.tenantId, event));
   }
 }
 
@@ -325,6 +445,18 @@ export function createAzureTableStores(input: {
     ),
     siteMappingStore: new AzureTableSiteMappingStore(
       new TableClient(input.config.endpoint, input.config.siteMappingTableName, input.credential),
+      input.tenantId,
+    ),
+    hierarchyNodeStore: new AzureTableHierarchyNodeStore(
+      new TableClient(input.config.endpoint, input.config.hierarchyNodeTableName, input.credential),
+      input.tenantId,
+    ),
+    scopeAssignmentStore: new AzureTableScopeAssignmentStore(
+      new TableClient(input.config.endpoint, input.config.scopeAssignmentTableName, input.credential),
+      input.tenantId,
+    ),
+    siteMappingAuditStore: new AzureTableSiteMappingAuditStore(
+      new TableClient(input.config.endpoint, input.config.siteMappingAuditTableName, input.credential),
       input.tenantId,
     ),
   };

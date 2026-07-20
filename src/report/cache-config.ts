@@ -17,6 +17,7 @@ export type AzureApiReportCacheConfig = {
 
 export type AzureReportCacheConfig = {
   mode: "azure-table";
+  hierarchySource: "fixture" | "table";
   siteSource: "single-site" | "mapping-table";
   cacheTenantId: string;
   reportableLabelIds: Set<string>;
@@ -92,9 +93,14 @@ export function loadReportCacheConfig(
   if (siteSource !== "single-site" && siteSource !== "mapping-table") {
     throw new Error("REPORT_SITE_SOURCE must be single-site or mapping-table");
   }
+  const hierarchySource = env.REPORT_HIERARCHY_SOURCE?.trim() || "fixture";
+  if (hierarchySource !== "fixture" && hierarchySource !== "table") {
+    throw new Error("REPORT_HIERARCHY_SOURCE must be fixture or table");
+  }
 
   return {
     mode,
+    hierarchySource,
     siteSource,
     cacheTenantId: uuid(
       required(env, "REPORT_CACHE_TENANT_ID"),

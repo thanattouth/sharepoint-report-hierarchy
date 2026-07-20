@@ -1,6 +1,6 @@
 ---
 name: sharepoint-sensitivity-report
-description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph pilot planning, Azure scheduled scanning, report API hosting, or milestone work from P0 through P6.
+description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph scanning, Azure scheduling, report API hosting, or persistent business-scope administration.
 ---
 
 # SharePoint Sensitivity Report
@@ -15,6 +15,7 @@ Read these files completely before changing the product:
 2. `../../DESIGN.md` — Genesis visual source of truth.
 3. `../../docs/adr/0001-separate-web-and-scanner-identities.md` — identity boundary.
 4. `../../docs/adr/0002-separate-business-hierarchy-from-sharepoint-sites.md` — scope/site boundary.
+5. `../../docs/adr/0009-persist-business-scope-configuration.md` — canonical placement and admin-write boundary.
 
 Then inspect only the implementation files relevant to the request. Do not infer current completion from this skill; verify it from code, tests, and git state.
 
@@ -28,6 +29,7 @@ Place the request in one category before editing:
 - **P4 Graph pilot:** one approved non-production site using a separate scanner identity.
 - **P5 scheduled pilot:** Azure timer/queue operation after the P4 exit gate.
 - **P6 report API:** read-only Azure cache boundary and secure Sites integration.
+- **P7 configuration:** persistent hierarchy, User/Group assignments, canonical Site placements, audit, migration, or admin UX.
 
 Keep work inside the current category unless the user explicitly expands scope.
 
@@ -37,6 +39,7 @@ Enforce all of these on every change:
 
 - Separate capability from data scope. A role never grants all-site visibility by itself.
 - Resolve allowed site IDs from signed-in UPN, active assignments, active business nodes, `includeDescendants`, and active hierarchy-to-site mappings.
+- Match production principals by immutable Entra object ID. Allow UPN matching only as an explicit pilot fallback, and resolve group assignments from authenticated group object IDs.
 - Filter aggregates, file rows, detail views, and exports on the server before returning data.
 - Fail closed when hierarchy, assignment, or scope resolution is unavailable or ambiguous.
 - Return no inventory for users without an active assignment.
@@ -56,6 +59,7 @@ Enforce all of these on every change:
 
 - Keep domain logic pure and testable under `src/domain` and `src/report`.
 - Keep company hierarchy nodes, flat SharePoint Site records, and hierarchy-to-site mappings as separate contracts. Never embed a Site as a hierarchy child or node field.
+- Store one canonical placement entity per Site with Site ID as its row key. Use an expected version plus Azure ETag for writes, and append an audit event for every effective change.
 - Model the organization as a forest of independent EVP roots. Enforce the parent chain
   `EVP -> Department -> Group -> Project`; keep EVP nodes parentless and never traverse from one
   EVP tree into another.
@@ -101,6 +105,9 @@ Enforce all of these on every change:
   the scanner identity or a write-capable operator credential. If the website runtime cannot
   obtain an approved Entra token, keep Azure mode fail-closed and put a narrow server-side report
   API in a compatible managed-identity runtime; never fall back to Shared Key or browser tokens.
+- Give configuration writes a separate server-side admin boundary. Never add Table write access to
+  the report reader or reuse the scanner identity. Keep browser write actions disabled until the
+  server can derive and authorize an administrator identity.
 - For Azure Functions, separate the host-storage identity from the cache-reader identity. The
   reader must not receive host-storage write roles. Keep Shared Key disabled for both stores.
 - Publish Flex Consumption packages with Azure Functions One Deploy through
@@ -303,6 +310,12 @@ For this repository's hosted cross-tenant pilot:
   scope before inventory reads. Adding a Site requires both a scan-registry operation and an
   approved canonical business mapping; neither requires a source-code change. Keep zero-Sensitive
   and never-scanned mapped Sites visible so operators can distinguish coverage from missing scan data.
+- Migrate legacy mappings into a new canonical table instead of changing row-key semantics in place.
+  Keep the legacy table for rollback, reject duplicate active Site placements before writing, read
+  the new configuration back, validate it, and only then switch the Report API settings.
+- Build configuration UX as an unmapped-first Site inbox with search, filters, pagination, bulk
+  selection, full node breadcrumbs, impact preview, optimistic concurrency feedback, and audit
+  metadata. Never render thousands of Sites as an expanded business tree.
 
 ## Handoff
 
