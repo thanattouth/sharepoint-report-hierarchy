@@ -32,6 +32,7 @@ const subscriptionId = required("P6_AZURE_SUBSCRIPTION_ID");
 const resourceGroup = required("P6_AZURE_RESOURCE_GROUP");
 const expectedSiteCount = Number(required("P6_EXPECTED_REPORT_SITE_COUNT"));
 const requiredSiteName = process.env.P6_REQUIRED_REPORT_SITE_NAME?.trim();
+const groupObjectIds = process.env.P6_REPORT_GROUP_OBJECT_IDS?.trim() ?? "";
 if (!Number.isInteger(expectedSiteCount) || expectedSiteCount < 1 || expectedSiteCount > 100) {
   throw new Error("P6_EXPECTED_REPORT_SITE_COUNT is invalid");
 }
@@ -68,7 +69,7 @@ const response = await fetch(
       // The legacy pilot assignment is UPN-based. This valid synthetic object ID proves that the
       // API requires the server identity contract without pretending it is a production principal.
       "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
-      "x-report-group-object-ids": "",
+      "x-report-group-object-ids": groupObjectIds,
       "x-report-capability": "ReportViewer",
     },
     redirect: "manual",

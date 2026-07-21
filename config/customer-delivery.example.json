@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "deploymentName": "customer-single-tenant",
+  "tenantId": "00000000-0000-4000-8000-000000000000",
+  "subscriptionId": "00000000-0000-4000-8000-000000000000",
+  "location": "southeastasia",
+  "resourceGroupName": "rg-sp-sensitivity-customer-sea",
+  "storageAccountName": "stspsenscustomer01",
+  "entra": {
+    "webAppDisplayName": "sharepoint-sensitivity-report-web-customer",
+    "scannerAppDisplayName": "sharepoint-sensitivity-scanner-customer",
+    "webRedirectUris": [
+      "http://localhost:3000/api/auth/entra/callback"
+    ]
+  },
+  "workloads": {
+    "scanner": {
+      "scopeMode": "single-site",
+      "allowedLibraryNames": ["Secret", "Confidential"],
+      "reportableLabels": [
+        {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "displayName": "Confidential"
+        }
+      ],
+      "maxConcurrency": 4,
+      "maxRetries": 3,
+      "nightlySchedule": "0 0 18 * * *",
+      "reconciliationSchedule": "0 0 19 * * 6",
+      "schedulesDisabled": true
+    },
+    "bootstrapSite": {
+      "id": "customer.sharepoint.com,00000000-0000-4000-8000-000000000000,00000000-0000-4000-8000-000000000000",
+      "name": "Controlled Pilot Site",
+      "hostname": "customer.sharepoint.com",
+      "path": "/sites/ControlledPilot",
+      "businessNodeId": "project-controlled-pilot"
+    },
+    "report": {
+      "allowedUpns": ["report.admin@customer.example"],
+      "maxDetailSites": 25
+    },
+    "configurationAdmin": {
+      "allowedActors": ["report.admin@customer.example"]
+    },
+    "businessScope": {
+      "nodes": [
+        { "id": "evp-a", "type": "EVP", "name": "EVP A", "active": true },
+        { "id": "department-a", "parentId": "evp-a", "type": "Department", "name": "Department A", "active": true },
+        { "id": "group-a", "parentId": "department-a", "type": "Group", "name": "Group A", "active": true },
+        { "id": "project-controlled-pilot", "parentId": "group-a", "type": "Project", "name": "Controlled Pilot", "active": true }
+      ],
+      "memberUpns": ["report.admin@customer.example"],
+      "reportAdminGroupDisplayName": "SP Sensitivity Report Admins - Customer",
+      "scopeGroups": [
+        {
+          "displayName": "SP Sensitivity Scope - EVP A",
+          "nodeId": "evp-a",
+          "businessRole": "EVP",
+          "includeDescendants": true
+        }
+      ]
+    }
+  },
+  "rbac": {
+    "mode": "admin-handoff"
+  },
+  "tags": {
+    "workload": "sharepoint-sensitivity-report",
+    "environment": "delivery-simulation",
+    "managedBy": "bicep"
+  }
+}

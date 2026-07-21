@@ -345,6 +345,36 @@ For this repository's hosted cross-tenant pilot:
 
 ## Handoff
 
+### Customer single-tenant delivery
+
+- Deliver by reproducibly provisioning an isolated target instance; do not move the pilot
+  subscription or copy tenant-bound application objects as authoritative identities.
+- Keep customer identifiers and resource names in a validated ignored delivery manifest, with no
+  secrets, Function keys, tokens, or file metadata. Bind every preflight and deployment to the
+  manifest tenant and subscription, and run What-if before mutation.
+- Recreate Entra applications, service principals, managed identities, and exact-scope RBAC in the
+  customer tenant. Rediscover SharePoint Sites, sensitivity labels, and Entra groups, then rebind
+  portable business nodes to immutable target IDs.
+- Build a fresh target cache and delta state. Never migrate pilot inventory or cursors as business
+  configuration.
+- When the deployer lacks role-assignment permission, use explicit admin-handoff mode and stop
+  before workload publishing or Table access. Never enable Shared Key as a workaround.
+- Keep the source instance unchanged until target smoke tests, branch-visibility UAT, and rollback
+  review pass. Treat cutover and teardown as separately approved operations.
+- Model customer delivery access by stable group display names in the validated manifest, but
+  resolve and persist immutable Entra Object IDs only in the target tenant. Plan before creating
+  groups or app-role assignments, verify direct bootstrap membership, and fail on duplicate group
+  display names. Bootstrap hierarchy, group scope, Site placement, and audit events idempotently;
+  never overwrite conflicting customer configuration.
+- In Vinext/Cloudflare local UAT, process-scoped bindings require
+  `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` when no `.dev.vars` file exists. A fixture-mode render after
+  setting shell variables is not proof of the Azure/Entra path; verify an Entra redirect and the
+  absence of persona/capability selectors before accepting UAT.
+- Treat Sites environment replacement as a separate cutover because existing secret values are
+  non-exportable. Preserve a recoverable source runtime in an approved secret manager or deploy a
+  separate customer-owned host before overwriting client/session secrets and Function keys. Never
+  call an available old source version a rollback if its required runtime secrets cannot be restored.
+
 ### Entra-backed report visibility and group picker
 
 - In Azure API mode, require a verified Entra session containing `ReportViewer` or `ReportAdmin`.

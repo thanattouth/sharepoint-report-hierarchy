@@ -36,6 +36,16 @@ param reportableLabelIds string
 @secure()
 param labelDisplayNamesJson string
 
+@minValue(1)
+@maxValue(20)
+@description('Maximum concurrent Graph item requests per Site worker.')
+param maxConcurrency int = 4
+
+@minValue(0)
+@maxValue(10)
+@description('Maximum retry attempts for retryable Graph requests.')
+param maxRetries int = 3
+
 @description('Nightly incremental schedule in six-field NCRONTAB UTC format.')
 param nightlySchedule string = '0 0 18 * * *'
 
@@ -286,8 +296,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       SCANNER_ALLOWED_LIBRARY_NAMES: allowedLibraryNames
       SCANNER_REPORTABLE_LABEL_IDS: reportableLabelIds
       SCANNER_LABEL_DISPLAY_NAMES_JSON: labelDisplayNamesJson
-      SCANNER_MAX_CONCURRENCY: '4'
-      SCANNER_MAX_RETRIES: '3'
+      SCANNER_MAX_CONCURRENCY: string(maxConcurrency)
+      SCANNER_MAX_RETRIES: string(maxRetries)
       SCANNER_NIGHTLY_SCHEDULE: nightlySchedule
       SCANNER_RECONCILIATION_SCHEDULE: reconciliationSchedule
       AZURE_STORAGE_ACCOUNT_NAME: reportCache.name

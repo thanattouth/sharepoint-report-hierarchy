@@ -121,11 +121,16 @@ export function safeReturnTo(value: string | null | undefined) {
   return value.slice(0, 1024);
 }
 
+export function safeAuthenticationPrompt(value: string | null | undefined) {
+  return value === "select_account" ? value : undefined;
+}
+
 export async function createEntraAuthorizationRequest(
   request: Request,
   env: Record<string, string | undefined> = process.env,
 ) {
   const config = loadEntraAuthConfig(env);
+  const prompt = safeAuthenticationPrompt(new URL(request.url).searchParams.get("prompt"));
   const origin = resolveAllowedRequestOrigin(request, config);
   const verifier = oidc.randomPKCECodeVerifier();
   const state = oidc.randomState();
@@ -147,6 +152,7 @@ export async function createEntraAuthorizationRequest(
     code_challenge_method: "S256",
     state,
     nonce,
+    ...(prompt ? { prompt } : {}),
   });
   const cookie = await sealProtectedCookie(flow, config, "flow");
   return {

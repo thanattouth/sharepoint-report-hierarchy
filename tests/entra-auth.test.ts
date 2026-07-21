@@ -5,6 +5,7 @@ import {
   hasReportAdminRole,
   requireReportViewer,
   requireReportAdmin,
+  safeAuthenticationPrompt,
   safeReturnTo,
   sessionFromVerifiedClaims,
   type EntraSession,
@@ -124,4 +125,11 @@ test("return path validation prevents external and auth-loop redirects", () => {
   assert.equal(safeReturnTo("//attacker.example.com"), "/");
   assert.equal(safeReturnTo("https://attacker.example.com"), "/");
   assert.equal(safeReturnTo("/api/auth/entra/callback"), "/");
+});
+
+test("account switching permits only the bounded OIDC prompt", () => {
+  assert.equal(safeAuthenticationPrompt("select_account"), "select_account");
+  assert.equal(safeAuthenticationPrompt("login"), undefined);
+  assert.equal(safeAuthenticationPrompt("consent"), undefined);
+  assert.equal(safeAuthenticationPrompt(null), undefined);
 });

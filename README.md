@@ -48,3 +48,7 @@ tables และ read-only `ScannerSites` แล้ว หน้า `/admin/site
 verified Entra session ที่มี `ReportAdmin` ก่อน Inbox/preview/Apply จะทำงาน Function key อยู่ฝั่ง
 server และ audit actor มาจาก verified UPN ไม่ใช่ค่าจาก browser ดู provisioning, rotation และ
 ขอบเขตที่ยังเหลือใน [docs/p8-entra-web-auth.md](docs/p8-entra-web-auth.md)
+
+การติดตั้งแบบ customer-owned single tenant ใช้ validated delivery manifest, preflight, What-if และ
+explicit RBAC/admin-consent gates ตาม
+[docs/customer-single-tenant-delivery.md](docs/customer-single-tenant-delivery.md)

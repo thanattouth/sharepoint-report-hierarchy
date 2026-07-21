@@ -28,8 +28,14 @@ const resourceGroup = required("P7_AZURE_RESOURCE_GROUP");
 const actor = required("CONFIG_ADMIN_ALLOWED_ACTORS").split(",")[0]?.trim();
 if (!actor) throw new Error("CONFIG_ADMIN_ALLOWED_ACTORS has no actor");
 const expectedMappedSiteCount = Number(process.env.P7_EXPECTED_MAPPED_SITE_COUNT ?? "8");
+const expectedActiveNodeCount = Number(process.env.P7_EXPECTED_ACTIVE_NODE_COUNT ?? "15");
+const expectedAssignmentCount = Number(process.env.P7_EXPECTED_ASSIGNMENT_COUNT ?? "10");
 if (!Number.isInteger(expectedMappedSiteCount) || expectedMappedSiteCount < 0) {
   throw new Error("P7_EXPECTED_MAPPED_SITE_COUNT must be a non-negative integer");
+}
+if (!Number.isInteger(expectedActiveNodeCount) || expectedActiveNodeCount < 1
+  || !Number.isInteger(expectedAssignmentCount) || expectedAssignmentCount < 0) {
+  throw new Error("P7 expected business-scope counts are invalid");
 }
 const outputs = azJson([
   "deployment", "group", "show",
@@ -81,7 +87,7 @@ async function fetchInboxPage(page: number): Promise<InboxPage> {
 
 const firstPage = await fetchInboxPage(1);
 if (!Array.isArray(firstPage.rows) || !Array.isArray(firstPage.nodes)
-  || firstPage.nodes.length !== 15 || !Number.isInteger(firstPage.total)
+  || firstPage.nodes.length !== expectedActiveNodeCount || !Number.isInteger(firstPage.total)
   || !Number.isInteger(firstPage.pageCount) || (firstPage.pageCount ?? 0) > 100) {
   throw new Error("Configuration inbox response is invalid");
 }
@@ -131,13 +137,14 @@ const businessScope = await businessScopeResponse.json() as {
   counts?: Record<string, unknown>;
 };
 if (!Array.isArray(businessScope.nodes)
-  || businessScope.nodes.filter((node) => node.active === true).length !== 15
+  || businessScope.nodes.filter((node) => node.active === true).length !== expectedActiveNodeCount
   || !businessScope.nodes.every((node) => typeof node.id === "string"
     && typeof node.name === "string"
     && typeof node.type === "string"
     && typeof node.active === "boolean"
     && Number.isInteger(node.version))
   || !Array.isArray(businessScope.assignments)
+  || businessScope.assignments.filter((assignment) => assignment.active === true).length !== expectedAssignmentCount
   || !businessScope.assignments.every((assignment) => typeof assignment.id === "string"
     && typeof assignment.nodeId === "string"
     && Number.isInteger(assignment.version))
