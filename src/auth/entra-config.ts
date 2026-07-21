@@ -78,9 +78,25 @@ export function loadEntraAuthConfig(
 }
 
 export function resolveAllowedRequestOrigin(request: Request, config: EntraAuthConfig) {
-  const origin = new URL(request.url).origin;
-  if (!config.allowedOrigins.has(origin)) throw new Error("Request origin is not allowed for Entra authentication");
+  const candidates = [new URL(request.url).origin];
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLocaleLowerCase();
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+  if (forwardedHost && (forwardedProtocol === "https" || forwardedProtocol === "http")) {
+    try {
+      candidates.push(new URL(`${forwardedProtocol}://${forwardedHost}`).origin);
+    } catch {
+      // An invalid proxy origin remains unauthorized below.
+    }
+  }
+  const origin = candidates.find((candidate) => config.allowedOrigins.has(candidate));
+  if (!origin) throw new Error("Request origin is not allowed for Entra authentication");
   return origin;
+}
+
+export function resolveAllowedRequestUrl(request: Request, config: EntraAuthConfig) {
+  const origin = resolveAllowedRequestOrigin(request, config);
+  const requestUrl = new URL(request.url);
+  return new URL(`${requestUrl.pathname}${requestUrl.search}`, origin);
 }
 
 export function validateMutationOrigin(request: Request, config: EntraAuthConfig) {

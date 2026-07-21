@@ -1,6 +1,12 @@
 # P5 scheduled scanner runbook
 
-## Deployed bounded-pilot topology
+> **Superseded historical pilot — do not execute.** This runbook records the 2026-07-16
+> cross-tenant pilot only. Its Entra objects were removed from the BAHT tenant on 2026-07-21,
+> its consent URL is no longer valid, and its source-tenant resource names must not be reused.
+> New customer delivery uses [Customer single-tenant delivery](customer-single-tenant-delivery.md)
+> and customer-owned identities/resources. The detail below is retained as audit evidence.
+
+## Historical bounded-pilot topology
 
 ```text
 nightlySchedule ────────────┐
@@ -39,14 +45,15 @@ Keep `AzureWebJobs.nightlySchedule.Disabled` and
 `AzureWebJobs.weeklyReconciliation.Disabled` set to `True` until the manual proof succeeds.
 They were changed to `False` after the bounded proof recorded below.
 
-## Source-tenant admin consent gate
+## Historical source-tenant admin consent gate (revoked)
 
-An administrator in the SharePoint tenant must review and consent the hosted app's
+During the superseded pilot, an administrator in the SharePoint tenant reviewed and consented the hosted app's
 Microsoft Graph application permission `Files.Read.All`:
 
-<https://login.microsoftonline.com/9fbc4f5d-56ec-4074-82f0-69d9a86a7c06/v2.0/adminconsent?client_id=ef71cf00-4bff-422d-9413-5877d36d7de2&redirect_uri=https%3A%2F%2Ffunc-sp-sens-scan-khoccycnf.azurewebsites.net%2Fapi%2Fscanner%2Fadmin-consent-complete&scope=https%3A%2F%2Fgraph.microsoft.com%2F.default>
+The original consent URL has intentionally been removed because the enterprise application was
+deleted. Never recreate it from the historical client and Function IDs recorded below.
 
-The consent must create the enterprise application in the SharePoint tenant and show only
+The historical consent created the enterprise application in the SharePoint tenant and showed only
 the reviewed application permission. Do not add a client secret. Microsoft documents the
 cross-tenant managed-identity federation pattern at
 <https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-config-app-trust-managed-identity>.

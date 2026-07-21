@@ -89,6 +89,43 @@ For local Vinext/Cloudflare UAT without a `.dev.vars` file, pass
 client secrets, session keys, and Function keys outside the manifest and repository. Do not update
 the production Sites environment until local Entra, report, admin, and logout UAT passes.
 
+## Customer-owned Azure App Service
+
+Add `webHosting` to the ignored customer manifest with globally unique Web App and Key Vault names,
+the exact deployed Function App names, an explicit SKU, and the group-picker feature gate. Include
+both the local callback (when local UAT is retained) and the exact production callback
+`https://<app-name>.azurewebsites.net/api/auth/entra/callback` in `entra.webRedirectUris`.
+
+Use B1 only for delivery rehearsal or low-volume acceptance testing. Choose S1 or P0v3 after the
+customer approves availability, scale, deployment-slot, backup, and cost requirements.
+
+```bash
+npm run delivery:web:what-if -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:web:deploy -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:web:secrets -- --manifest delivery-instances/<customer>/manifest.json
+npm run package:azure-web
+npm run delivery:web:publish -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:web:check -- --manifest delivery-instances/<customer>/manifest.json
+```
+
+The infrastructure stage creates a dedicated Linux plan, Web App system-managed identity, Key
+Vault, App Insights/Log Analytics, least-privilege Key Vault roles, hardened HTTPS/TLS settings,
+and versionless Key Vault references. It also installs the exact production callback and requires
+explicit user/group assignment on the target enterprise application. It does not create a client
+secret during What-if or infrastructure deployment.
+
+The secrets stage creates one expiring Entra confidential-client credential, a random 256-bit
+session key, and separate `web-bridge` Function host keys. Values move directly into Key Vault and
+are never written to the manifest, repository, deployment output, or App Service settings. A normal
+rerun is a no-op when all four managed secrets exist; deliberate rotation requires invoking
+`scripts/delivery-web-secrets.ts --rotate` in an approved change window, verifying the new login,
+then removing superseded Entra credentials after rollback expiry.
+
+The check stage fails closed unless all Key Vault references resolve, HTTPS-only is active, the
+enterprise application requires assignment, callback URIs exactly match the manifest, the public
+health surface responds, and an anonymous report request reaches the target tenant's OIDC endpoint.
+Complete one interactive ReportAdmin and one ReportViewer/no-role UAT before production cutover.
+
 ## Web cutover gate
 
 Treat hosted environment replacement as a separate cutover. Sites returns existing secret values

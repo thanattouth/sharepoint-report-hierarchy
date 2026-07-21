@@ -23,12 +23,12 @@ This repository is an evolving production product, not a disposable prototype.
 - Separate the Function host identity from the report-cache reader identity. Scope the reader to
   `Storage Table Data Reader` on the cache account and keep host-storage write roles off it.
 - Site Mapping administration uses single-tenant Entra OIDC and derives `ReportAdmin` plus the
-  audit UPN from verified claims. The main report's selectable persona remains test-data pilot
-  authentication only and must be replaced with the same immutable principal boundary before
-  production report-user visibility is claimed.
+  audit UPN from verified claims. In `azure-api` mode the main report uses the same immutable Entra
+  session and removes all selectable persona/capability controls. Customer hosting must require
+  explicit Enterprise App user/group assignment and keep OIDC/session/API secrets in Key Vault.
 - Run lint, type check, unit/rendered tests, build, and dependency audit before release.
 
-## Dependency security baseline — 2026-07-14
+## Dependency security baseline — reverified 2026-07-21
 
 Build tooling was updated to remove all high and critical findings reported by `npm audit`.
 The production dependency audit reports two moderate findings in Next.js's nested PostCSS
@@ -36,5 +36,5 @@ dependency; the complete dependency-tree audit reports four moderate findings th
 same chain. npm currently proposes
 an incompatible Next.js downgrade as the only automatic fix, so it was not applied. Track a
 compatible upstream Next.js release, reassess the advisory's runtime reachability, and rerun
-the full Sites build before upgrading. Never use `npm audit fix --force` without reviewing
-the dependency graph and validating runtime compatibility.
+both the full Sites build and standalone Azure App Service build before upgrading. Never use
+`npm audit fix --force` without reviewing the dependency graph and validating runtime compatibility.

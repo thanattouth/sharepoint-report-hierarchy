@@ -10,8 +10,18 @@
     "webAppDisplayName": "sharepoint-sensitivity-report-web-customer",
     "scannerAppDisplayName": "sharepoint-sensitivity-scanner-customer",
     "webRedirectUris": [
-      "http://localhost:3000/api/auth/entra/callback"
+      "http://localhost:3000/api/auth/entra/callback",
+      "https://app-sp-sens-customer.azurewebsites.net/api/auth/entra/callback"
     ]
+  },
+  "webHosting": {
+    "appServiceName": "app-sp-sens-customer",
+    "appServicePlanName": "plan-sp-sens-web-customer-sea",
+    "keyVaultName": "kv-sp-sens-customer",
+    "skuName": "B1",
+    "reportApiFunctionAppName": "func-sp-sens-report-customer",
+    "configurationAdminFunctionAppName": "func-sp-sens-config-customer",
+    "groupPickerEnabled": false
   },
   "workloads": {
     "scanner": {

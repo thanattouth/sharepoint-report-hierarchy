@@ -8,7 +8,7 @@ test("logout clears every application-owned Entra cookie and stops on a public s
     method: "POST",
   }));
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "https://report.example.com/auth/signed-out");
+  assert.equal(response.headers.get("location"), "/auth/signed-out");
   assert.equal(response.headers.get("cache-control"), "no-store");
   const cookies = response.headers.getSetCookie();
   for (const name of [ENTRA_SESSION_COOKIE, ENTRA_FLOW_COOKIE, ENTRA_GRAPH_COOKIE]) {

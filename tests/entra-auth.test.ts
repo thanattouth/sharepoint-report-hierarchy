@@ -10,7 +10,11 @@ import {
   sessionFromVerifiedClaims,
   type EntraSession,
 } from "../src/auth/entra";
-import { loadEntraAuthConfig } from "../src/auth/entra-config";
+import {
+  loadEntraAuthConfig,
+  resolveAllowedRequestOrigin,
+  resolveAllowedRequestUrl,
+} from "../src/auth/entra-config";
 import {
   ENTRA_SESSION_COOKIE,
   openProtectedCookie,
@@ -36,6 +40,38 @@ test("Entra auth configuration validates tenant, origins, and a 256-bit session 
   assert.equal(loadEntraAuthConfig({ ...env, ENTRA_AUTH_GROUP_PICKER_ENABLED: "true" }).groupPickerEnabled, true);
   assert.throws(() => loadEntraAuthConfig({ ...env, ENTRA_AUTH_ALLOWED_ORIGINS: "http://report.example.com" }), /HTTPS/);
   assert.throws(() => loadEntraAuthConfig({ ...env, ENTRA_AUTH_SESSION_SECRET: "c2hvcnQ" }), /32 bytes/);
+});
+
+test("Entra origin resolution accepts only an allowlisted reverse-proxy origin", () => {
+  const config = loadEntraAuthConfig(env);
+  const proxied = new Request("http://127.0.0.1:8080/api/auth/entra/login", {
+    headers: {
+      "x-forwarded-host": "report.example.com",
+      "x-forwarded-proto": "https",
+    },
+  });
+  assert.equal(resolveAllowedRequestOrigin(proxied, config), "https://report.example.com");
+  assert.equal(
+    resolveAllowedRequestUrl(
+      new Request("http://127.0.0.1:8080/api/auth/entra/callback?code=opaque", {
+        headers: {
+          "x-forwarded-host": "report.example.com",
+          "x-forwarded-proto": "https",
+        },
+      }),
+      config,
+    ).toString(),
+    "https://report.example.com/api/auth/entra/callback?code=opaque",
+  );
+  assert.throws(
+    () => resolveAllowedRequestOrigin(new Request(proxied, {
+      headers: {
+        "x-forwarded-host": "attacker.example.com",
+        "x-forwarded-proto": "https",
+      },
+    }), config),
+    /not allowed/,
+  );
 });
 
 test("verified Entra claims bind session to tenant, audience, object ID, and app roles", () => {

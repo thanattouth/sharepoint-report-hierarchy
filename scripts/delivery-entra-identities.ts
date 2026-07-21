@@ -199,6 +199,7 @@ try {
   ]);
   verifyWebApplication(applicationConfiguration(web.appId), manifest.entra.webRedirectUris, webGraphAccess);
   const webSp = ensureServicePrincipal(web.appId);
+  azVoid(["ad", "sp", "update", "--id", webSp.id, "--set", "appRoleAssignmentRequired=true"]);
 
   const scanner = existingScanner ?? azJson<EntraApplication>([
     "ad", "app", "create",

@@ -67,6 +67,24 @@ test("committed delivery example contains a valid schedules-disabled workload co
   const parsed = parseCustomerDeliveryManifest(JSON.parse(readFileSync("config/customer-delivery.example.json", "utf8")));
   assert.equal(parsed.workloads?.scanner.schedulesDisabled, true);
   assert.equal(parsed.workloads?.scanner.scopeMode, "single-site");
+  assert.equal(parsed.webHosting?.skuName, "B1");
+});
+
+test("requires the exact App Service callback when customer web hosting is configured", () => {
+  assert.throws(
+    () => parseCustomerDeliveryManifest(manifest({
+      webHosting: {
+        appServiceName: "app-sp-sens-customer",
+        appServicePlanName: "plan-sp-sens-web-customer-sea",
+        keyVaultName: "kv-sp-sens-customer",
+        skuName: "B1",
+        reportApiFunctionAppName: "func-sp-sens-report-customer",
+        configurationAdminFunctionAppName: "func-sp-sens-config-customer",
+        groupPickerEnabled: false,
+      },
+    })),
+    /must contain https:\/\/app-sp-sens-customer\.azurewebsites\.net\/api\/auth\/entra\/callback/,
+  );
 });
 
 test("initial delivery rejects enabled schedules", () => {

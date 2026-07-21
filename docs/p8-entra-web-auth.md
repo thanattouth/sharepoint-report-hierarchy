@@ -2,7 +2,11 @@
 
 P8 protects the Configuration Admin browser surface with a dedicated single-tenant Entra web app.
 
-## Provisioned pilot identity
+## Historical Sites pilot identity
+
+> The identity and callback below describe the source Sites pilot and are retained for rollback
+> evidence only. Customer delivery must use the target tenant's manifest and the Azure App Service
+> runbook; do not copy these IDs or callback origins.
 
 - App registration: `sharepoint-sensitivity-report-web`
 - Application (client) ID: `28a07326-f117-4d36-880b-6abb133cd222`
@@ -71,6 +75,11 @@ unsuccessful. This operation does not sign the user out of Microsoft 365 globall
 
 Do not use an Azure CLI token, a selectable persona, a browser-supplied UPN, or the Sites owner
 identity as a substitute for the Entra application session.
+
+For customer-owned hosting, the same server-side OIDC/session contract runs in Azure App Service.
+Runtime secrets are Key Vault references, the enterprise application requires explicit user/group
+assignment, and App Service platform authentication remains disabled to avoid a second competing
+OIDC session. See [P8 Azure App Service runbook](p8-azure-app-service.md).
 
 ## Report identity and group assignments
 

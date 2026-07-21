@@ -4,7 +4,7 @@ function logout(request: Request) {
   const url = new URL(request.url);
   const response = new Response(null, {
     status: 303,
-    headers: { Location: new URL("/auth/signed-out", url.origin).toString() },
+    headers: { Location: "/auth/signed-out" },
   });
   const secure = url.protocol === "https:";
   response.headers.append("Set-Cookie", clearCookie(ENTRA_SESSION_COOKIE, secure));

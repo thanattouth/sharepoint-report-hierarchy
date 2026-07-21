@@ -1,5 +1,10 @@
 import * as oidc from "openid-client";
-import { loadEntraAuthConfig, resolveAllowedRequestOrigin, type EntraAuthConfig } from "./entra-config";
+import {
+  loadEntraAuthConfig,
+  resolveAllowedRequestOrigin,
+  resolveAllowedRequestUrl,
+  type EntraAuthConfig,
+} from "./entra-config";
 import {
   ENTRA_FLOW_COOKIE,
   ENTRA_GRAPH_COOKIE,
@@ -180,7 +185,7 @@ export async function completeEntraAuthorizationRequest(
   }
   const tokens = await oidc.authorizationCodeGrant(
     await getOidcConfiguration(config),
-    new URL(request.url),
+    resolveAllowedRequestUrl(request, config),
     {
       pkceCodeVerifier: flow.verifier,
       expectedState: flow.state,

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     const response = new Response(null, {
       status: 302,
       headers: {
-        Location: new URL(`/auth/denied?reason=${encodeURIComponent(code)}`, request.url).toString(),
+        Location: `/auth/denied?reason=${encodeURIComponent(code)}`,
       },
     });
     response.headers.append("Set-Cookie", clearCookie(ENTRA_FLOW_COOKIE, secure));
