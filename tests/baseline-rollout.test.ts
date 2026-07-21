@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { GovernedSharePointSite, SensitivityScanRun } from "../src/domain/types";
 import {
+  configureBaselineWaveCandidates,
   evaluateBaselineWave,
   excludeBaselineCandidates,
   selectBaselineWave,
@@ -108,6 +109,56 @@ test("baseline exclusion keeps candidates disabled, clears Wave 1 and is idempot
     reason: "operator-review",
     now,
   }), { requestedCount: 2, excludedCount: 0, alreadyExcludedCount: 2 });
+});
+
+test("baseline wave configuration selects an exact bounded set and excludes displaced candidates", async () => {
+  const store = new MemorySiteStore();
+  for (const [id, wave] of [["keep", 1], ["displace", 1], ["promote", 2]] as const) {
+    store.values.set(id, {
+      ...site(id, wave),
+      active: false,
+      scanEnabled: false,
+      baselineState: "candidate",
+    });
+  }
+  assert.deepEqual(await configureBaselineWaveCandidates({
+    siteStore: store,
+    wave: 1,
+    siteIds: ["keep", "promote"],
+    exclusionReason: "controlled-visibility-wave",
+    now: () => new Date("2026-07-21T10:00:00.000Z"),
+  }), {
+    wave: 1,
+    selectedSiteCount: 2,
+    selectedChangeCount: 1,
+    displacedSiteCount: 1,
+  });
+  assert.equal(store.values.get("keep")?.baselineWave, 1);
+  assert.equal(store.values.get("promote")?.baselineWave, 1);
+  assert.equal(store.values.get("displace")?.baselineWave, undefined);
+  assert.equal(store.values.get("displace")?.baselineState, "excluded");
+  assert.equal(store.values.get("displace")?.baselineExclusionReason, "controlled-visibility-wave");
+});
+
+test("baseline wave configuration fails preflight without partial writes", async () => {
+  const store = new MemorySiteStore();
+  store.values.set("safe", {
+    ...site("safe", 1),
+    active: false,
+    scanEnabled: false,
+    baselineState: "candidate",
+  });
+  store.values.set("unsafe", { ...site("unsafe", 2), baselineState: "approved" });
+  await assert.rejects(
+    configureBaselineWaveCandidates({
+      siteStore: store,
+      wave: 1,
+      siteIds: ["unsafe"],
+      exclusionReason: "controlled-visibility-wave",
+    }),
+    /not a disabled candidate/,
+  );
+  assert.equal(store.values.get("safe")?.baselineWave, 1);
 });
 
 test("baseline exclusion fails preflight without writes when any target is unsafe", async () => {

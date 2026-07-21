@@ -46,6 +46,8 @@ function exactWebApplication(displayName: string) {
 const manifest = loadCustomerDeliveryManifest(argument("--manifest"));
 const hosting = manifest.webHosting;
 if (!hosting) throw new Error("Delivery manifest does not contain webHosting configuration");
+const webOrigin = `https://${hosting.appServiceName}.azurewebsites.net`;
+const enterpriseApplicationLaunchUrl = `${webOrigin}/`;
 const operation = process.argv.includes("--deploy") ? "create" : process.argv.includes("--what-if") ? "what-if" : undefined;
 if (!operation) throw new Error("Expected --what-if or --deploy");
 
@@ -85,7 +87,7 @@ writeFileSync(parameterFile, JSON.stringify({
     operatorPrincipalId: { value: operator.id },
     entraTenantId: { value: manifest.tenantId },
     entraClientId: { value: webApplication.appId },
-    webOrigin: { value: `https://${hosting.appServiceName}.azurewebsites.net` },
+    webOrigin: { value: webOrigin },
     groupPickerEnabled: { value: hosting.groupPickerEnabled },
     reportApiFunctionAppName: { value: hosting.reportApiFunctionAppName },
     configurationAdminFunctionAppName: { value: hosting.configurationAdminFunctionAppName },
@@ -113,11 +115,18 @@ try {
       "ad", "app", "update", "--id", webApplication.appId,
       "--enable-id-token-issuance", "false",
       "--enable-access-token-issuance", "false",
+      "--web-home-page-url", enterpriseApplicationLaunchUrl,
       "--web-redirect-uris", ...manifest.entra.webRedirectUris,
     ]);
     azVoid([
       "ad", "sp", "update", "--id", webServicePrincipals[0].id,
       "--set", "appRoleAssignmentRequired=true",
+    ]);
+    azVoid([
+      "rest", "--method", "patch",
+      "--url", `https://graph.microsoft.com/v1.0/servicePrincipals/${webServicePrincipals[0].id}`,
+      "--headers", "content-type=application/json",
+      "--body", JSON.stringify({ loginUrl: enterpriseApplicationLaunchUrl }),
     ]);
   }
 
@@ -127,6 +136,7 @@ try {
     appServiceName: hosting.appServiceName,
     keyVaultName: hosting.keyVaultName,
     enterpriseApplicationAssignmentRequired: operation === "create" ? true : undefined,
+    enterpriseApplicationLaunchUrl: operation === "create" ? enterpriseApplicationLaunchUrl : undefined,
     clientSecretCreated: false,
   })}\n`);
 } finally {

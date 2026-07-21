@@ -32,12 +32,13 @@ const subscriptionId = required("P6_AZURE_SUBSCRIPTION_ID");
 const resourceGroup = required("P6_AZURE_RESOURCE_GROUP");
 const expectedSiteCount = Number(required("P6_EXPECTED_REPORT_SITE_COUNT"));
 const requiredSiteName = process.env.P6_REQUIRED_REPORT_SITE_NAME?.trim();
-const groupObjectIds = process.env.P6_REPORT_GROUP_OBJECT_IDS?.trim() ?? "";
+const groupObjectIds = required("P6_REPORT_GROUP_OBJECT_IDS");
 if (!Number.isInteger(expectedSiteCount) || expectedSiteCount < 1 || expectedSiteCount > 100) {
   throw new Error("P6_EXPECTED_REPORT_SITE_COUNT is invalid");
 }
-const userUpn = required("REPORT_PILOT_ALLOWED_UPNS").split(",")[0]?.trim();
-if (!userUpn) throw new Error("REPORT_PILOT_ALLOWED_UPNS has no pilot UPN");
+const userUpn = required("P6_REPORT_TEST_USER_UPN");
+const userObjectId = required("P6_REPORT_TEST_USER_OBJECT_ID");
+const tenantId = required("REPORT_CACHE_TENANT_ID");
 const outputs = azJson([
   "deployment", "group", "show",
   "--subscription", subscriptionId,
@@ -65,10 +66,9 @@ const response = await fetch(
   {
     headers: {
       "x-functions-key": functionKey,
+      "x-report-tenant-id": tenantId,
       "x-report-user-upn": userUpn,
-      // The legacy pilot assignment is UPN-based. This valid synthetic object ID proves that the
-      // API requires the server identity contract without pretending it is a production principal.
-      "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
+      "x-report-user-object-id": userObjectId,
       "x-report-group-object-ids": groupObjectIds,
       "x-report-capability": "ReportViewer",
     },
@@ -89,6 +89,26 @@ if (requiredSiteName && !(result.siteRollups as Array<Record<string, unknown>>)
   .some((site) => site.siteName === requiredSiteName)) {
   throw new Error(`Report API response is missing required Site ${requiredSiteName}`);
 }
+const wrongTenantId = tenantId.toLowerCase() === "00000000-0000-4000-8000-000000000000"
+  ? "11111111-1111-4111-8111-111111111111"
+  : "00000000-0000-4000-8000-000000000000";
+const wrongTenantResponse = await fetch(
+  `https://${hostname}/api/report?page=1&pageSize=1`,
+  {
+    headers: {
+      "x-functions-key": functionKey,
+      "x-report-tenant-id": wrongTenantId,
+      "x-report-user-upn": userUpn,
+      "x-report-user-object-id": userObjectId,
+      "x-report-group-object-ids": groupObjectIds,
+      "x-report-capability": "ReportViewer",
+    },
+    redirect: "manual",
+  },
+);
+if (wrongTenantResponse.status !== 403) {
+  throw new Error(`Report API wrong-tenant check returned HTTP ${wrongTenantResponse.status}`);
+}
 process.stdout.write(`${JSON.stringify({
   status: "verified",
   siteCount: result.siteCount,
@@ -96,5 +116,6 @@ process.stdout.write(`${JSON.stringify({
   reportState: result.state,
   sensitiveCount: result.scopeSensitiveCount,
   libraryCount: result.libraryCount,
+  wrongTenantDenied: true,
   requiredSiteName: requiredSiteName || undefined,
 })}\n`);

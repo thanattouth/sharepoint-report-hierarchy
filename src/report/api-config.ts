@@ -7,10 +7,6 @@ export class ReportApiRequestError extends Error {
   }
 }
 
-export type ReportApiConfig = {
-  allowedPilotUpns: Set<string>;
-};
-
 const UPN_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATUS_VALUES = new Set([
@@ -22,41 +18,11 @@ const STATUS_VALUES = new Set([
   "failed",
 ]);
 
-function required(env: Record<string, string | undefined>, name: string) {
-  const value = env[name]?.trim();
-  if (!value) throw new Error(`${name} is required for the report API`);
-  return value;
-}
-
-export function loadReportApiConfig(
-  env: Record<string, string | undefined>,
-): ReportApiConfig {
-  const allowedPilotUpns = new Set(
-    required(env, "REPORT_PILOT_ALLOWED_UPNS")
-      .split(",")
-      .map((value) => value.trim().toLocaleLowerCase())
-      .filter(Boolean),
-  );
-  if (allowedPilotUpns.size === 0 || [...allowedPilotUpns].some((upn) => !UPN_PATTERN.test(upn))) {
-    throw new Error("REPORT_PILOT_ALLOWED_UPNS must contain valid comma-separated UPNs");
+export class ReportApiAuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReportApiAuthorizationError";
   }
-  return { allowedPilotUpns };
-}
-
-export function selectAllowedPilotPersonas<T extends { upn: string }>(
-  personas: T[],
-  config: ReportApiConfig,
-): T[] {
-  const byUpn = new Map(
-    personas.map((persona) => [persona.upn.toLocaleLowerCase(), persona]),
-  );
-  return [...config.allowedPilotUpns].map((upn) => {
-    const persona = byUpn.get(upn);
-    if (!persona) {
-      throw new Error(`Allowed pilot UPN ${upn} has no configured demo persona`);
-    }
-    return persona;
-  });
 }
 
 function optional(value: string | null, maximum: number, name: string) {
@@ -77,28 +43,31 @@ function integer(value: string | null, fallback: number, minimum: number, maximu
 
 export function parseReportApiRequest(
   url: string,
-  config: ReportApiConfig,
+  expectedTenantId: string,
   headers: Pick<Headers, "get"> = new Headers(),
 ): ReportRequest {
   const params = new URL(url).searchParams;
+  const tenantId = headers.get("x-report-tenant-id")?.trim().toLocaleLowerCase();
+  if (!UUID_PATTERN.test(expectedTenantId) || tenantId !== expectedTenantId.toLocaleLowerCase()) {
+    throw new ReportApiAuthorizationError("verified tenant ID is missing or invalid");
+  }
   const userUpn = headers.get("x-report-user-upn")?.trim().toLocaleLowerCase();
-  if (!userUpn || !UPN_PATTERN.test(userUpn)) throw new ReportApiRequestError("verified user header is required");
-  if (!config.allowedPilotUpns.has(userUpn)) {
-    throw new ReportApiRequestError("The authenticated pilot user is not allowed");
+  if (!userUpn || !UPN_PATTERN.test(userUpn)) {
+    throw new ReportApiAuthorizationError("verified user header is required");
   }
   const userObjectId = headers.get("x-report-user-object-id")?.trim().toLocaleLowerCase();
   if (!userObjectId || !UUID_PATTERN.test(userObjectId)) {
-    throw new ReportApiRequestError("verified user object ID header is required");
+    throw new ReportApiAuthorizationError("verified user object ID header is required");
   }
   const rawGroupIds = headers.get("x-report-group-object-ids") ?? "";
-  if (rawGroupIds.length > 8_000) throw new ReportApiRequestError("group identity header is too long");
+  if (rawGroupIds.length > 8_000) throw new ReportApiAuthorizationError("group identity header is too long");
   const groupObjectIds = [...new Set(rawGroupIds.split(",").map((value) => value.trim().toLocaleLowerCase()).filter(Boolean))];
   if (groupObjectIds.length > 100 || groupObjectIds.some((id) => !UUID_PATTERN.test(id))) {
-    throw new ReportApiRequestError("group identity header is invalid");
+    throw new ReportApiAuthorizationError("group identity header is invalid");
   }
   const capability = headers.get("x-report-capability");
   if (capability !== "ReportAdmin" && capability !== "ReportViewer") {
-    throw new ReportApiRequestError("verified capability header is required");
+    throw new ReportApiAuthorizationError("verified capability header is required");
   }
   const scanStatus = optional(params.get("status"), 32, "status");
   if (scanStatus && !STATUS_VALUES.has(scanStatus)) {
@@ -111,7 +80,7 @@ export function parseReportApiRequest(
 
   return {
     userUpn,
-    principalContext: { userUpn, userObjectId, groupObjectIds },
+    principalContext: { tenantId, userUpn, userObjectId, groupObjectIds },
     capability,
     scenario: "current",
     filters: {

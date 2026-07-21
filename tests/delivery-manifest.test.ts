@@ -5,7 +5,7 @@ import { parseCustomerDeliveryManifest } from "../src/delivery/manifest";
 
 function manifest(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     deploymentName: "customer-single-tenant",
     tenantId: "11111111-1111-4111-8111-111111111111",
     subscriptionId: "22222222-2222-4222-8222-222222222222",

@@ -1,6 +1,6 @@
 # ADR 0011: Use verified Entra principals for report scope
 
-Status: Accepted
+Status: Superseded by ADR 0013
 
 The production report derives identity only from the verified single-tenant Entra session. URL
 parameters may filter an already-authorized report, but `user`, `capability`, and demo scenario

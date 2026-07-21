@@ -3,10 +3,6 @@ import "server-only";
 import type { AppCapability, ScanStatus } from "../domain/types";
 import type { GovernancePrincipalContext } from "../domain/types";
 import { demoPersonas } from "../fixtures/data";
-import {
-  loadReportApiConfig,
-  selectAllowedPilotPersonas,
-} from "./api-config";
 import { fetchReportFromApi } from "./api-client";
 import { loadReportCacheConfig } from "./cache-config";
 import {
@@ -87,11 +83,7 @@ export async function loadReportPage(
 }
 
 export async function getDemoOptions() {
-  const cacheConfig = loadReportCacheConfig(process.env);
-  if (cacheConfig.mode !== "azure-api") return structuredClone(demoPersonas);
-  return structuredClone(
-    selectAllowedPilotPersonas(demoPersonas, loadReportApiConfig(process.env)),
-  );
+  return structuredClone(demoPersonas);
 }
 
 export function getReportMode() {

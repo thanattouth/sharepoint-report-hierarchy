@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "deploymentName": "customer-single-tenant",
   "tenantId": "00000000-0000-4000-8000-000000000000",
   "subscriptionId": "00000000-0000-4000-8000-000000000000",
@@ -47,7 +47,6 @@
       "businessNodeId": "project-controlled-pilot"
     },
     "report": {
-      "allowedUpns": ["report.admin@customer.example"],
       "maxDetailSites": 25
     },
     "configurationAdmin": {

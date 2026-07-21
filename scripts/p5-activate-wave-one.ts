@@ -13,10 +13,11 @@ try {
   throw new Error("P5_BASELINE_WAVE_ONE_SITE_IDS_JSON must be valid JSON");
 }
 if (!Array.isArray(parsed)
-  || parsed.length !== 8
+  || parsed.length < 1
+  || parsed.length > 10
   || parsed.some((value) => typeof value !== "string" || !value.trim())
   || new Set(parsed).size !== parsed.length) {
-  throw new Error("Wave 1 activation requires exactly 8 unique non-empty Site IDs");
+  throw new Error("Wave 1 activation requires 1 to 10 unique non-empty Site IDs");
 }
 const approvedSiteIds = new Set(parsed as string[]);
 const graphConfig = loadGraphPilotConfig(process.env);

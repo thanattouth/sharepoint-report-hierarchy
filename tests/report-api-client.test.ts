@@ -6,6 +6,7 @@ import type { ReportData, ReportRequest } from "../src/report/report-service";
 const request: ReportRequest = {
   userUpn: "nipaporn@contoso.com",
   principalContext: {
+    tenantId: "99999999-9999-4999-8999-999999999999",
     userUpn: "nipaporn@contoso.com",
     userObjectId: "11111111-2222-4333-8444-555555555555",
     groupObjectIds: ["aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"],
@@ -31,6 +32,7 @@ test("Sites API client keeps the function key in a server-side header", async ()
   let requestedUrl = "";
   let requestedKey: string | null = null;
   let requestedIdentity: string | null = null;
+  let requestedTenant: string | null = null;
   let redirectMode: RequestRedirect | undefined;
   const report = await fetchReportFromApi(
     {
@@ -44,6 +46,7 @@ test("Sites API client keeps the function key in a server-side header", async ()
       requestedUrl = input.toString();
       requestedKey = new Headers(init?.headers).get("x-functions-key");
       requestedIdentity = new Headers(init?.headers).get("x-report-user-object-id");
+      requestedTenant = new Headers(init?.headers).get("x-report-tenant-id");
       redirectMode = init?.redirect;
       return Response.json(body);
     },
@@ -54,6 +57,7 @@ test("Sites API client keeps the function key in a server-side header", async ()
   assert.doesNotMatch(requestedUrl, /server-secret/);
   assert.equal(requestedKey, "server-secret");
   assert.equal(requestedIdentity, "11111111-2222-4333-8444-555555555555");
+  assert.equal(requestedTenant, "99999999-9999-4999-8999-999999999999");
   assert.equal(redirectMode, "manual");
 });
 

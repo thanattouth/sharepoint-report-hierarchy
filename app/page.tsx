@@ -116,6 +116,7 @@ export default async function Home({
   let loadError: "denied" | "cache" | null = null;
   try {
     report = await loadReportPage(params, reportMode === "azure-api" ? {
+      tenantId: entraSession!.tenantId,
       userUpn: entraSession!.userPrincipalName,
       userObjectId: entraSession!.principalObjectId,
       groupObjectIds: entraSession!.groupObjectIds,

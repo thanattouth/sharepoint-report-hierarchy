@@ -10,7 +10,7 @@ combined `.env` file. Copy only the examples required by the command being run:
 | `.env.graph-pilot.local` | bounded local Graph pilot | May contain the temporary P4 client secret |
 | `.env.scheduled-scanner.local` | hosted scanner runtime inputs | No local client secret |
 | `.env.p5-operator.local` | scanner infrastructure and baseline operations | No workload credential |
-| `.env.report-api.local` | read-only Report API runtime and pilot persona inputs | No scanner or Function key |
+| `.env.report-api.local` | read-only Report API runtime and cache tenant inputs | No scanner, user allowlist, or Function key |
 | `.env.report-client.local` | Sites server-to-Report-API connection | Function key; store it as a Sites secret when hosted |
 | `.env.p6-operator.local` | Report API infrastructure, migration, and verification | No workload credential |
 | `.env.configuration-admin.local` | configuration tenant and bounded admin allowlist | No Table token; hosted access uses managed identity |

@@ -49,6 +49,7 @@
     "p5:scanner:count-files:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-count-tenant-files.ts",
     "p5:scanner:build-candidate-manifest:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-build-candidate-manifest.ts",
     "p5:scanner:review-wave-1:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-review-wave-one.ts",
+    "p5:scanner:select-wave-1:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-select-baseline-wave.ts --apply",
     "p5:scanner:exclude-candidates:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-exclude-baseline-candidates.ts --apply",
     "p5:scanner:activate-wave-1:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-activate-wave-one.ts --apply",
     "p5:scanner:run-wave-1:local": "node --import tsx scripts/run-env-profile.ts p5-scanner -- scripts/p5-run-wave-one.ts",

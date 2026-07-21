@@ -5,8 +5,8 @@ import {
   type InvocationContext,
 } from "@azure/functions";
 import {
-  loadReportApiConfig,
   parseReportApiRequest,
+  ReportApiAuthorizationError,
   ReportApiRequestError,
 } from "../../../src/report/api-config";
 import { loadReportCacheConfig } from "../../../src/report/cache-config";
@@ -31,12 +31,15 @@ export async function reportHandler(
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
   try {
-    const apiConfig = loadReportApiConfig(process.env);
     const cacheConfig = loadReportCacheConfig(process.env);
     if (cacheConfig.mode !== "azure-table") {
       throw new Error("The report API requires Azure Table cache mode");
     }
-    const reportRequest = parseReportApiRequest(request.url, apiConfig, request.headers);
+    const reportRequest = parseReportApiRequest(
+      request.url,
+      cacheConfig.cacheTenantId,
+      request.headers,
+    );
     const report = buildReport(
       await loadReportSource(reportRequest, cacheConfig),
       reportRequest,
@@ -53,6 +56,9 @@ export async function reportHandler(
     if (error instanceof ReportApiRequestError) {
       return json(400, { error: "invalid-request" });
     }
+    if (error instanceof ReportApiAuthorizationError) {
+      return json(403, { error: "identity-denied" });
+    }
     if (error instanceof ReportAuthorizationError) {
       return json(403, { error: "scope-denied" });
     }
@@ -66,13 +72,12 @@ export async function reportHandler(
 
 export async function healthHandler(): Promise<HttpResponseInit> {
   try {
-    const apiConfig = loadReportApiConfig(process.env);
     const cacheConfig = loadReportCacheConfig(process.env);
     if (cacheConfig.mode !== "azure-table") throw new Error("Azure cache mode is required");
     return json(200, {
       status: "configured",
       cacheMode: cacheConfig.mode,
-      allowedPilotPersonaCount: apiConfig.allowedPilotUpns.size,
+      authorization: "entra-app-role-and-business-scope",
     });
   } catch {
     return json(503, { status: "unavailable" });

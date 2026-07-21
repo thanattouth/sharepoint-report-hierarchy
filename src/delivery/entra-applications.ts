@@ -1,4 +1,5 @@
 export const MICROSOFT_GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000";
+export const ENTERPRISE_APPLICATION_TAG = "WindowsAzureActiveDirectoryIntegratedApp";
 
 export const WEB_APP_ROLES = [
   {
@@ -23,6 +24,10 @@ export const WEB_DELEGATED_GRAPH_PERMISSIONS = ["GroupMember.Read.All"] as const
 export const SCANNER_APPLICATION_GRAPH_PERMISSIONS = ["Files.Read.All", "Sites.Read.All"] as const;
 
 type GraphPermission = { id: string; value?: string | null; allowedMemberTypes?: string[] };
+
+export function enterpriseApplicationTags(tags: readonly string[] = []): string[] {
+  return [...new Set([...tags, ENTERPRISE_APPLICATION_TAG])];
+}
 
 export function resolveGraphResourceAccess(
   graph: { appRoles: GraphPermission[]; oauth2PermissionScopes: GraphPermission[] },

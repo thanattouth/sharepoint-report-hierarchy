@@ -33,7 +33,6 @@ const parameterValues = {
   pilotSiteHostname: required("REPORT_PILOT_SITE_HOSTNAME"),
   pilotSitePath: required("REPORT_PILOT_SITE_PATH"),
   pilotSiteNodeId: required("REPORT_PILOT_SITE_NODE_ID"),
-  pilotAllowedUpns: required("REPORT_PILOT_ALLOWED_UPNS"),
   maxDetailSites: Number(required("REPORT_MAX_DETAIL_SITES")),
   assignManagedIdentityRoles: roleFlag === "true",
 };

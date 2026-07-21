@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { BusinessRole, GovernanceHierarchyNode } from "../domain/types";
 import { validateHierarchyConfiguration } from "../domain/hierarchy";
 
-export const CUSTOMER_DELIVERY_SCHEMA_VERSION = 1 as const;
+export const CUSTOMER_DELIVERY_SCHEMA_VERSION = 2 as const;
 
 export type CustomerDeliveryManifest = {
   schemaVersion: typeof CUSTOMER_DELIVERY_SCHEMA_VERSION;
@@ -45,7 +45,6 @@ export type CustomerDeliveryManifest = {
       businessNodeId: string;
     };
     report: {
-      allowedUpns: string[];
       maxDetailSites: number;
     };
     configurationAdmin: {
@@ -256,8 +255,7 @@ export function parseCustomerDeliveryManifest(input: unknown): CustomerDeliveryM
     if (!sitePath.startsWith("/sites/") || sitePath.includes("..")) throw new Error("manifest.workloads.bootstrapSite.path is invalid");
 
     const reportInput = object(workloadsInput.report, "manifest.workloads.report");
-    exactKeys(reportInput, ["allowedUpns", "maxDetailSites"], "manifest.workloads.report");
-    const allowedUpns = stringArray(reportInput.allowedUpns, "manifest.workloads.report.allowedUpns").map(validateUpn);
+    exactKeys(reportInput, ["maxDetailSites"], "manifest.workloads.report");
     const maxDetailSites = boundedInteger(reportInput.maxDetailSites, "manifest.workloads.report.maxDetailSites", 1, 100);
     const adminInput = object(workloadsInput.configurationAdmin, "manifest.workloads.configurationAdmin");
     exactKeys(adminInput, ["allowedActors"], "manifest.workloads.configurationAdmin");
@@ -352,7 +350,7 @@ export function parseCustomerDeliveryManifest(input: unknown): CustomerDeliveryM
         path: sitePath,
         businessNodeId: string(siteInput.businessNodeId, "manifest.workloads.bootstrapSite.businessNodeId"),
       },
-      report: { allowedUpns, maxDetailSites },
+      report: { maxDetailSites },
       configurationAdmin: { allowedActors },
       ...(businessScope ? { businessScope } : {}),
     };

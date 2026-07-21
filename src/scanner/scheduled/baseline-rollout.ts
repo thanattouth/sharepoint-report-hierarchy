@@ -111,6 +111,75 @@ export async function excludeBaselineCandidates(input: {
   };
 }
 
+export async function configureBaselineWaveCandidates(input: {
+  siteStore: SiteStore;
+  wave: number;
+  siteIds: string[];
+  exclusionReason: string;
+  now?: () => Date;
+}) {
+  if (!Number.isInteger(input.wave) || input.wave < 1) {
+    throw new Error("Baseline configuration wave must be a positive integer");
+  }
+  if (input.siteIds.length < 1
+    || input.siteIds.length > 10
+    || new Set(input.siteIds).size !== input.siteIds.length
+    || input.siteIds.some((siteId) => !siteId.trim())) {
+    throw new Error("Baseline configuration requires 1 to 10 unique non-empty Site IDs");
+  }
+  if (!input.exclusionReason.trim() || input.exclusionReason.length > 100) {
+    throw new Error("Baseline configuration exclusion reason must contain 1 to 100 characters");
+  }
+
+  const selected = await Promise.all(input.siteIds.map((siteId) => input.siteStore.get(siteId)));
+  if (selected.some((site) => !site)) {
+    throw new Error("A selected baseline Site is missing from the registry");
+  }
+  for (const site of selected as GovernedSharePointSite[]) {
+    if (site.active || site.scanEnabled || site.baselineState !== "candidate") {
+      throw new Error("A selected baseline Site is not a disabled candidate");
+    }
+    if (!site.scanLibraryIds?.length
+      || site.scanLibraryIds.some((driveId) => !driveId.trim())
+      || new Set(site.scanLibraryIds).size !== site.scanLibraryIds.length) {
+      throw new Error("A selected baseline Site has no valid exact library allowlist");
+    }
+  }
+
+  const selectedIds = new Set(input.siteIds);
+  const currentWave = await input.siteStore.listByBaselineWave(input.wave);
+  const displaced = currentWave.filter((site) => !selectedIds.has(site.id));
+  for (const site of displaced) {
+    if (site.active || site.scanEnabled || site.baselineState !== "candidate") {
+      throw new Error("A displaced baseline Site is not a disabled candidate");
+    }
+  }
+
+  const occurredAt = (input.now ?? (() => new Date()))().toISOString();
+  for (const site of displaced) {
+    const updated = { ...site };
+    delete updated.baselineWave;
+    await input.siteStore.save({
+      ...updated,
+      baselineState: "excluded",
+      baselineExclusionReason: input.exclusionReason.trim(),
+      baselineExcludedAt: occurredAt,
+    });
+  }
+  let selectedChangeCount = 0;
+  for (const site of selected as GovernedSharePointSite[]) {
+    if (site.baselineWave === input.wave) continue;
+    await input.siteStore.save({ ...site, baselineWave: input.wave });
+    selectedChangeCount += 1;
+  }
+  return {
+    wave: input.wave,
+    selectedSiteCount: input.siteIds.length,
+    selectedChangeCount,
+    displacedSiteCount: displaced.length,
+  };
+}
+
 export function selectBaselineWave(input: {
   sites: GovernedSharePointSite[];
   wave: number;

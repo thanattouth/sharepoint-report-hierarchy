@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadCustomerDeliveryManifest } from "../src/delivery/manifest";
 import {
+  ENTERPRISE_APPLICATION_TAG,
+  enterpriseApplicationTags,
   MICROSOFT_GRAPH_APP_ID,
   resolveGraphResourceAccess,
   SCANNER_APPLICATION_GRAPH_PERMISSIONS,
@@ -114,17 +116,30 @@ function verifyScannerApplication(
   if (!sameResourceAccess(application.requiredResourceAccess, graphAccess)) throw new Error("Scanner application Graph permissions drifted from the delivery contract");
 }
 
-function ensureServicePrincipal(appId: string): { id: string; appId: string } {
-  const existing = azJson<Array<{ id: string; appId: string }>>([
+type DeliveryServicePrincipal = { id: string; appId: string; tags?: string[] };
+
+function ensureServicePrincipal(appId: string): DeliveryServicePrincipal {
+  const existing = azJson<DeliveryServicePrincipal[]>([
     "ad", "sp", "list",
     "--filter", `appId eq '${appId}'`,
-    "--query", "[].{id:id,appId:appId}",
+    "--query", "[].{id:id,appId:appId,tags:tags}",
   ]);
   if (existing.length > 1) throw new Error(`Multiple service principals use application ID: ${appId}`);
-  return existing[0] ?? azJson<{ id: string; appId: string }>([
+  let principal = existing[0] ?? azJson<DeliveryServicePrincipal>([
     "ad", "sp", "create", "--id", appId,
-    "--query", "{id:id,appId:appId}",
+    "--query", "{id:id,appId:appId,tags:tags}",
   ]);
+  const tags = enterpriseApplicationTags(principal.tags);
+  if (!principal.tags?.includes(ENTERPRISE_APPLICATION_TAG)) {
+    azVoid([
+      "rest", "--method", "PATCH",
+      "--url", `https://graph.microsoft.com/v1.0/servicePrincipals/${principal.id}`,
+      "--headers", "content-type=application/json",
+      "--body", JSON.stringify({ tags }),
+    ]);
+    principal = { ...principal, tags };
+  }
+  return principal;
 }
 
 const manifest = loadCustomerDeliveryManifest(argument("--manifest"));

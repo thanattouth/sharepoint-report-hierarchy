@@ -13,10 +13,11 @@ try {
   throw new Error("P5_BASELINE_WAVE_ONE_SITE_IDS_JSON must be valid JSON");
 }
 if (!Array.isArray(parsed)
-  || parsed.length !== 8
+  || parsed.length < 1
+  || parsed.length > 10
   || parsed.some((value) => typeof value !== "string" || !value.trim())
   || new Set(parsed).size !== parsed.length) {
-  throw new Error("Wave 1 audit requires exactly 8 unique non-empty Site IDs");
+  throw new Error("Wave 1 audit requires 1 to 10 unique non-empty Site IDs");
 }
 const expectedSiteIds = new Set(parsed as string[]);
 const graphConfig = loadGraphPilotConfig(process.env);
@@ -27,7 +28,7 @@ const stores = createAzureTableStores({
   tenantId: graphConfig.tenantId,
 });
 const sites = await stores.siteStore.listByBaselineWave(1);
-if (sites.length !== 8 || sites.some((site) => !expectedSiteIds.has(site.id))) {
+if (sites.length !== expectedSiteIds.size || sites.some((site) => !expectedSiteIds.has(site.id))) {
   throw new Error("Stored Wave 1 Sites do not match the exact approved scope");
 }
 const runs = await Promise.all(sites.map((site) =>

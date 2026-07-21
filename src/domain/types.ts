@@ -61,6 +61,7 @@ export type GovernanceHierarchyAssignment = {
 };
 
 export type GovernancePrincipalContext = {
+  tenantId?: string;
   userUpn: string;
   userObjectId?: string;
   groupObjectIds?: string[];

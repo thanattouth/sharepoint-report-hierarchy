@@ -1,9 +1,9 @@
-# P6 read-only report API pilot
+# P6 read-only report API
 
 This slice places Azure Table access behind an Azure Functions Flex Consumption API. It keeps
 the Sites worker and browser away from Azure Storage tokens and preserves the cache-only report
-path. The API is a bounded no-login pilot: it accepts only configured fixture personas, fixes the
-capability to `ReportViewer`, and exposes no Run now or export operation.
+path. In hosted mode it accepts only the identity contract produced from a verified single-tenant
+Entra session and exposes no scanner operation.
 
 ## Architecture
 
@@ -14,13 +14,17 @@ capability to `ReportViewer`, and exposes no Run now or export operation.
 - The scanner identity remains separate and is never attached to the Function App.
 - The API resolves hierarchy scope before Table access. Broad scope reads `SiteLabelSummary`;
   inventory reads require an authorized Site selection when the configured threshold is crossed.
+- The API validates the request tenant against `REPORT_CACHE_TENANT_ID`, validates the verified
+  user/group Object IDs and app role, and then resolves active business assignments. It has no
+  per-user UPN allowlist; Entra groups remain the membership source of truth.
 - The Function key is a bounded pilot caller credential. Sites must store it as a server-side
   secret and send it in `x-functions-key`; it must never appear in a URL, browser bundle,
   `NEXT_PUBLIC_*`, log, or commit.
 
-Production promotion must replace the persona query with an authenticated UPN and replace the
-Function-key caller boundary with Microsoft Entra service-to-service authorization. Function
-keys do not provide user identity or business authorization.
+The Function-key caller boundary must eventually be replaced with Microsoft Entra
+service-to-service authorization. Until then the key is a Key Vault-backed server-bridge credential;
+the browser cannot submit identity headers or read the key. Function keys do not themselves provide
+user identity or business authorization.
 
 ## Reproducible commands
 
@@ -67,9 +71,9 @@ After code publishing:
 
 1. Retrieve a Function host key without printing or committing it.
 2. Call `/api/health` and confirm only configured aggregate metadata is returned.
-3. Call `/api/report` as the approved EVP and Project personas; compare sensitive counts with
+3. Call `/api/report` with verified same-tenant EVP and Project identity contracts; compare sensitive counts with
    `SiteLabelSummary`.
-4. Confirm sibling, no-assignment, disallowed-persona, and cross-Site requests are denied.
+4. Confirm wrong-tenant, malformed-identity, sibling, no-assignment, and cross-Site requests fail closed.
 5. Inspect logs and confirm they contain status/count telemetry but no tokens, keys, file names,
    paths, or query-string secrets.
 6. Store the key through Sites environment management as a secret, set
@@ -101,9 +105,8 @@ all four report-cache tables.
   and Project personas each returned one Site, 12 sensitive rows, and HTTP 200. The sibling persona
   returned `no-sites`; the unassigned persona returned `no-assignment`.
 - Sites integration: the Function key is stored as a Sites server-side secret; the endpoint, mode,
-  and timeout are runtime environment values. Local Worker verification rendered the Azure API
-  mode with 12 sensitive files, limits the selector to the API persona allowlist, and rejected API
-  redirects without forwarding the key. The source is ready for an owner-only Sites deployment.
+  and timeout are runtime environment values. This historical pilot deployment was later superseded
+  by ADR 0013, which removes the persona allowlist in favor of verified tenant/app-role/group scope.
 
 ## References
 

@@ -51,6 +51,7 @@ export async function fetchReportFromApi(
     headers: {
       Accept: "application/json",
       "x-functions-key": config.functionKey,
+      "x-report-tenant-id": request.principalContext?.tenantId ?? "",
       "x-report-user-upn": request.userUpn,
       "x-report-user-object-id": request.principalContext?.userObjectId ?? "",
       "x-report-group-object-ids": (request.principalContext?.groupObjectIds ?? []).join(","),

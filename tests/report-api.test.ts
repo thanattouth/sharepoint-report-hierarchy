@@ -1,76 +1,77 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  loadReportApiConfig,
   parseReportApiRequest,
+  ReportApiAuthorizationError,
   ReportApiRequestError,
-  selectAllowedPilotPersonas,
 } from "../src/report/api-config";
 
-test("report API requires an explicit pilot UPN allowlist", () => {
-  assert.throws(() => loadReportApiConfig({}), /REPORT_PILOT_ALLOWED_UPNS/);
-  assert.throws(
-    () => loadReportApiConfig({ REPORT_PILOT_ALLOWED_UPNS: "not-a-upn" }),
-    /valid comma-separated UPNs/,
-  );
-});
+const tenantId = "99999999-9999-4999-8999-999999999999";
 
-test("report API fixes capability and scenario while validating filters", () => {
-  const config = loadReportApiConfig({
-    REPORT_PILOT_ALLOWED_UPNS: "nipaporn@contoso.com,prach@contoso.com",
-  });
+test("report API accepts a verified same-tenant guest without a per-user allowlist", () => {
   const headers = new Headers({
-    "x-report-user-upn": "Nipaporn@contoso.com",
+    "x-report-tenant-id": tenantId,
+    "x-report-user-upn": "Thanattouth_M365.co.th#EXT#@BAHTNET.onmicrosoft.com",
     "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
     "x-report-group-object-ids": "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE",
     "x-report-capability": "ReportViewer",
   });
   const request = parseReportApiRequest(
     "https://localhost/api/report?site=site-1&page=2&pageSize=20",
-    config,
+    tenantId,
     headers,
   );
-  assert.equal(request.userUpn, "nipaporn@contoso.com");
+  assert.equal(request.userUpn, "thanattouth_m365.co.th#ext#@bahtnet.onmicrosoft.com");
+  assert.equal(request.principalContext?.tenantId, tenantId);
   assert.equal(request.capability, "ReportViewer");
   assert.equal(request.scenario, "current");
   assert.equal(request.filters.siteId, "site-1");
   assert.equal(request.filters.page, 2);
   assert.equal(request.filters.pageSize, 20);
+});
+
+test("report API fails closed on tenant or verified identity mismatch", () => {
+  const validHeaders = {
+    "x-report-tenant-id": tenantId,
+    "x-report-user-upn": "viewer@contoso.com",
+    "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
+    "x-report-group-object-ids": "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE",
+    "x-report-capability": "ReportViewer",
+  };
   assert.throws(
     () => parseReportApiRequest(
-      "https://localhost/api/report?user=outside%40contoso.com",
-      config,
-      new Headers({ ...Object.fromEntries(headers), "x-report-user-upn": "outside@contoso.com" }),
+      "https://localhost/api/report",
+      tenantId,
+      new Headers({
+        ...validHeaders,
+        "x-report-tenant-id": "88888888-8888-4888-8888-888888888888",
+      }),
     ),
-    ReportApiRequestError,
+    ReportApiAuthorizationError,
   );
   assert.throws(
     () => parseReportApiRequest(
-      "https://localhost/api/report?user=nipaporn%40contoso.com&status=made-up",
-      config,
-      headers,
+      "https://localhost/api/report",
+      tenantId,
+      new Headers({ ...validHeaders, "x-report-capability": "" }),
     ),
-    /status is invalid/,
+    ReportApiAuthorizationError,
   );
 });
 
-test("Azure API persona selector exposes only the configured pilot allowlist", () => {
-  const config = loadReportApiConfig({
-    REPORT_PILOT_ALLOWED_UPNS: "evp@example.com,project@example.com",
+test("report API keeps malformed filters separate from authorization failures", () => {
+  const headers = new Headers({
+    "x-report-tenant-id": tenantId,
+    "x-report-user-upn": "viewer@contoso.com",
+    "x-report-user-object-id": "11111111-2222-4333-8444-555555555555",
+    "x-report-capability": "ReportViewer",
   });
-  assert.deepEqual(
-    selectAllowedPilotPersonas([
-      { upn: "other@example.com", name: "Other" },
-      { upn: "project@example.com", name: "Project" },
-      { upn: "evp@example.com", name: "EVP" },
-    ], config),
-    [
-      { upn: "evp@example.com", name: "EVP" },
-      { upn: "project@example.com", name: "Project" },
-    ],
-  );
   assert.throws(
-    () => selectAllowedPilotPersonas([], config),
-    /has no configured demo persona/,
+    () => parseReportApiRequest(
+      "https://localhost/api/report?status=made-up",
+      tenantId,
+      headers,
+    ),
+    ReportApiRequestError,
   );
 });

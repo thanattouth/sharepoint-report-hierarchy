@@ -70,6 +70,7 @@ Enforce all of these on every change:
 - Treat `locked`, `unsupported`, `throttled`, and `failed` as item outcomes; do not fail an entire run automatically.
 - Queue Run now and return immediately. Never hold a browser request until scanning completes.
 - Read active `scanEnabled` Sites for scheduled work independently of report users. Scan each Site once per run and apply business mappings only when authorizing cached report reads.
+- For a multi-Site baseline, persist discovery as disabled candidates, choose an exact operator-approved wave of 1–10 Sites with immutable drive-ID allowlists, and keep both timers disabled. Run the coordinator sequentially; stop on failed/throttled outcomes, require review for partial outcomes, and use the audited skip path before resuming. Never broaden the wave merely because more disabled candidates exist.
 - Preserve unrelated user changes in the worktree.
 
 ## Build for production maintainability
@@ -135,9 +136,13 @@ Enforce all of these on every change:
 - Publish Flex Consumption packages with Azure Functions One Deploy through
   `az functionapp deployment source config-zip`. Do not use `az functionapp deploy --type zip`;
   that path can target unsupported Zip Deploy behavior and return HTTP 415 on Flex Consumption.
-- Treat a Function key and selectable fixture UPN as a bounded test-data pilot only. Store the
-  key as a Sites server secret and send it in a header, never a URL. Before production, require
-  Microsoft Entra caller authorization and derive UPN from authenticated claims.
+- Treat the Function key as a server-bridge credential only. Store it in Key Vault, send it in a
+  header, never a URL, and never expose it to the browser. Bind every report request to the tenant
+  ID, UPN, user Object ID, group Object IDs, and app role derived from the verified Entra session.
+  Do not retain a per-user Report API allowlist after group-based scope cutover; it breaks B2B guest
+  UPNs and duplicates Entra membership administration. A role grants capability only, while active
+  immutable group assignments grant business data scope. Replace the Function key with workload
+  identity before final production hardening.
 - When a Sites/Cloudflare Worker calls the report API, use `redirect: "manual"` and reject every
   3xx response before reading the body. Workerd does not implement `redirect: "error"`; never
   switch to automatic redirect following because it could forward the Function key to another
@@ -355,6 +360,9 @@ For this repository's hosted cross-tenant pilot:
 - Recreate Entra applications, service principals, managed identities, and exact-scope RBAC in the
   customer tenant. Rediscover SharePoint Sites, sensitivity labels, and Entra groups, then rebind
   portable business nodes to immutable target IDs.
+- When CLI automation creates a Service Principal, preserve existing tags and add
+  `WindowsAzureActiveDirectoryIntegratedApp`; otherwise the object works through Graph but is hidden
+  by the Entra **Enterprise applications** application-type filter.
 - Build a fresh target cache and delta state. Never migrate pilot inventory or cursors as business
   configuration.
 - When the deployer lacks role-assignment permission, use explicit admin-handoff mode and stop
@@ -379,12 +387,13 @@ For this repository's hosted cross-tenant pilot:
 
 - In Azure API mode, require a verified Entra session containing `ReportViewer` or `ReportAdmin`.
   Remove persona, capability, and scenario selectors; ignore those URL parameters server-side.
-- Build report principal context from verified UPN, user object ID, and group object IDs. Resolve
+- Build report principal context from verified tenant ID, UPN, user object ID, and group object IDs. Resolve
   active assignments and descendants before any cached inventory read. App role is capability,
   never business data scope.
 - Keep browser-to-report traffic behind a server bridge. Do not expose Function keys or trust
-  identity headers sent directly by the browser. Retain a bounded pilot user allowlist until the
-  Report API has workload-identity caller authorization.
+  identity headers sent directly by the browser. Do not add a Report API user allowlist after
+  Entra group cutover; manage access through enterprise-app role assignment and immutable group
+  scope assignment, and fail closed on tenant or identity-header mismatch.
 - Prefer `ApplicationGroup` claims so tokens include only groups assigned to the enterprise app.
   Treat `hasgroups` or `_claim_names.groups` as overage and fail closed; do not interpret an omitted
   group list as proof that the user has no group assignments.

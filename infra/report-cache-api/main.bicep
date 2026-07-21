@@ -34,10 +34,6 @@ param pilotSitePath string
 @secure()
 param pilotSiteNodeId string
 
-@description('Comma-separated fixture UPNs permitted only for the no-login pilot proof.')
-@secure()
-param pilotAllowedUpns string
-
 @description('Maximum number of Sites whose detail partitions may be loaded without an explicit Site selection.')
 @minValue(1)
 @maxValue(100)
@@ -258,7 +254,6 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       REPORT_PILOT_SITE_HOSTNAME: pilotSiteHostname
       REPORT_PILOT_SITE_PATH: pilotSitePath
       REPORT_PILOT_SITE_NODE_ID: pilotSiteNodeId
-      REPORT_PILOT_ALLOWED_UPNS: pilotAllowedUpns
       REPORT_MAX_DETAIL_SITES: string(maxDetailSites)
       AZURE_STORAGE_ACCOUNT_NAME: reportCache.name
       AZURE_STORAGE_TENANT_ID: subscription().tenantId

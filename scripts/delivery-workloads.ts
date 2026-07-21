@@ -124,7 +124,6 @@ try {
       pilotSiteHostname: workloads.bootstrapSite.hostname,
       pilotSitePath: workloads.bootstrapSite.path,
       pilotSiteNodeId: workloads.bootstrapSite.businessNodeId,
-      pilotAllowedUpns: workloads.report.allowedUpns.join(","),
       maxDetailSites: workloads.report.maxDetailSites,
       assignManagedIdentityRoles: true,
     },

@@ -55,6 +55,8 @@ The identity stage creates a single-tenant Report Web application with `ReportAd
 permissions but intentionally stops before admin consent. The scanner requests application
 `Files.Read.All` and `Sites.Read.All`; the optional server-side group picker requests delegated
 `GroupMember.Read.All`. Review and consent remain explicit customer-admin gates.
+Every created Service Principal receives the `WindowsAzureActiveDirectoryIntegratedApp` tag so it
+appears under the Entra **Enterprise applications** filter when provisioned through the CLI.
 
 After Graph consent and Azure RBAC gates pass, deploy the three workload boundaries with schedules
 disabled:
@@ -83,6 +85,8 @@ application. The configuration bootstrap resolves those groups by immutable targ
 ID, imports only the manifest nodes, assigns scope, places the controlled Site, writes audit events,
 and reads the result back for validation. It never imports source-tenant users, groups, Site IDs, or
 inventory. Reruns are idempotent; conflicting existing rows fail closed instead of being overwritten.
+The schema-v2 manifest has no Report API user allowlist: adding or removing report users is an Entra
+group membership operation, while immutable group-to-business-node assignments remain in Azure Table.
 
 For local Vinext/Cloudflare UAT without a `.dev.vars` file, pass
 `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` so the Worker receives the process-scoped bindings. Keep
@@ -111,8 +115,10 @@ npm run delivery:web:check -- --manifest delivery-instances/<customer>/manifest.
 The infrastructure stage creates a dedicated Linux plan, Web App system-managed identity, Key
 Vault, App Insights/Log Analytics, least-privilege Key Vault roles, hardened HTTPS/TLS settings,
 and versionless Key Vault references. It also installs the exact production callback and requires
-explicit user/group assignment on the target enterprise application. It does not create a client
-secret during What-if or infrastructure deployment.
+explicit user/group assignment on the target enterprise application. The deploy stage also sets
+the App Registration homepage and service principal `loginUrl` to the same canonical HTTPS root;
+that root starts the application's OIDC flow when Microsoft My Apps launches it. It does not create
+a client secret during What-if or infrastructure deployment.
 
 The secrets stage creates one expiring Entra confidential-client credential, a random 256-bit
 session key, and separate `web-bridge` Function host keys. Values move directly into Key Vault and
@@ -122,9 +128,30 @@ rerun is a no-op when all four managed secrets exist; deliberate rotation requir
 then removing superseded Entra credentials after rollback expiry.
 
 The check stage fails closed unless all Key Vault references resolve, HTTPS-only is active, the
-enterprise application requires assignment, callback URIs exactly match the manifest, the public
-health surface responds, and an anonymous report request reaches the target tenant's OIDC endpoint.
+enterprise application requires assignment, its My Apps launch URL is exact, callback URIs exactly
+match the manifest, the public health surface responds, and an anonymous report request reaches the
+target tenant's OIDC endpoint.
 Complete one interactive ReportAdmin and one ReportViewer/no-role UAT before production cutover.
+
+## Controlled multi-Site baseline
+
+Keep both scanner timers disabled while expanding beyond the single-Site proof. Tenant discovery
+may persist readable Sites as inactive candidates, but an operator must select and review an exact
+wave of 1–10 Site IDs and their immutable document-library drive IDs before activation. Use:
+
+```bash
+npm run p5:scanner:select-wave-1:local
+npm run p5:scanner:review-wave-1:local
+npm run p5:scanner:activate-wave-1:local
+npm run p5:scanner:run-wave-1:local
+npm run p5:scanner:audit-wave-1:local
+```
+
+The coordinator queues one Site at a time. It stops on failed or throttled outcomes and requires
+operator review for locked/unsupported partial outcomes. An approved skip keeps the run evidence,
+disables that Site from future schedules, and allows the remaining wave to continue. Map only
+completed Sites into the business forest; keep scan scope independent from EVP/Department/Group/
+Project placement and verify at least two EVP roots before claiming cross-branch isolation.
 
 ## Web cutover gate
 

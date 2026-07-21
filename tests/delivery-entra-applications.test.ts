@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ENTERPRISE_APPLICATION_TAG,
+  enterpriseApplicationTags,
   resolveGraphResourceAccess,
   SCANNER_APPLICATION_GRAPH_PERMISSIONS,
   WEB_APP_ROLES,
@@ -31,5 +33,13 @@ test("delivery identity planning fails closed when Graph permission resolution d
   assert.throws(
     () => resolveGraphResourceAccess({ appRoles: [], oauth2PermissionScopes: [] }, ["Sites.Read.All"], "Role"),
     /permission is unavailable/,
+  );
+});
+
+test("delivery service principals retain existing tags and appear as Enterprise applications", () => {
+  assert.deepEqual(enterpriseApplicationTags(), [ENTERPRISE_APPLICATION_TAG]);
+  assert.deepEqual(
+    enterpriseApplicationTags(["existing", ENTERPRISE_APPLICATION_TAG, "existing"]),
+    ["existing", ENTERPRISE_APPLICATION_TAG],
   );
 });

@@ -82,7 +82,8 @@ for (let attempt = 0; attempt < 600; attempt += 1) {
     redirect: "manual",
   });
   if (response.status !== 200 && response.status !== 202) {
-    throw new Error(`Wave 1 coordinator returned HTTP ${response.status}`);
+    const detail = (await response.text()).slice(0, 200);
+    throw new Error(`Wave 1 coordinator returned HTTP ${response.status}: ${detail}`);
   }
   const result = await response.json() as Record<string, unknown>;
   if (!(["queued", "in-progress", "review-required", "stopped", "complete"] as unknown[])

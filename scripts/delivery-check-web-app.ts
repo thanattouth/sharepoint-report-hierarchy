@@ -58,14 +58,16 @@ if (applications.length !== 1) throw new Error("Expected exactly one Report Web 
 if (!applications[0].passwordCredentials.some(({ endDateTime }) => Date.parse(endDateTime) > Date.now())) {
   throw new Error("Report Web application has no active client credential");
 }
-const servicePrincipals = azJson<Array<{ id: string; appRoleAssignmentRequired: boolean }>>([
+const servicePrincipals = azJson<Array<{ id: string; appRoleAssignmentRequired: boolean; loginUrl?: string | null }>>([
   "ad", "sp", "list", "--filter", `appId eq '${applications[0].appId}'`,
-  "--query", "[].{id:id,appRoleAssignmentRequired:appRoleAssignmentRequired}",
+  "--query", "[].{id:id,appRoleAssignmentRequired:appRoleAssignmentRequired,loginUrl:loginUrl}",
 ]);
 if (servicePrincipals.length !== 1 || !servicePrincipals[0].appRoleAssignmentRequired) {
   throw new Error("Report Web enterprise application must require explicit user/group assignment");
 }
-const application = azJson<{ web?: { redirectUris?: string[] } }>(["ad", "app", "show", "--id", applications[0].appId]);
+const application = azJson<{ web?: { homePageUrl?: string | null; redirectUris?: string[] } }>([
+  "ad", "app", "show", "--id", applications[0].appId,
+]);
 const actualRedirects = [...(application.web?.redirectUris ?? [])].sort();
 const expectedRedirects = [...manifest.entra.webRedirectUris].sort();
 if (actualRedirects.length !== expectedRedirects.length || !actualRedirects.every((value, index) => value === expectedRedirects[index])) {
@@ -90,6 +92,13 @@ for (const name of REQUIRED_SECRET_SETTINGS) {
 }
 
 const origin = `https://${webApp.defaultHostName}`;
+const expectedEnterpriseApplicationLaunchUrl = `${origin}/`;
+if (application.web?.homePageUrl !== expectedEnterpriseApplicationLaunchUrl) {
+  throw new Error("Report Web App Registration homepage URL is missing or incorrect");
+}
+if (servicePrincipals[0].loginUrl !== expectedEnterpriseApplicationLaunchUrl) {
+  throw new Error("Report Web enterprise application launch URL is missing or incorrect");
+}
 const signedOut = await fetchWithRetry(`${origin}/auth/signed-out`);
 if (signedOut.status !== 200 || !(await signedOut.text()).includes("SESSION CLEARED")) {
   throw new Error("Public signed-out health surface is unavailable");
@@ -120,6 +129,7 @@ process.stdout.write(`${JSON.stringify({
   appServiceState: webApp.state,
   keyVaultReferencesResolved: REQUIRED_SECRET_SETTINGS.length,
   enterpriseApplicationAssignmentRequired: true,
+  enterpriseApplicationLaunchUrl: expectedEnterpriseApplicationLaunchUrl,
   anonymousBoundary: "entra-redirect",
   tenantSpecificOidc: true,
 })}\n`);
