@@ -186,6 +186,13 @@ Use the business-first editorial system in `../../DESIGN.md`:
 - Keep the company hierarchy as an authorization and aggregation model even when the main dashboard does not visualize the tree.
 - Prefer a compact resolved-scope proof on the main report: show the assigned business node or nodes, descendant inclusion, visible-node count, visible-Site count, and Sensitive count.
 - Make the searchable, paginated flat Site Explorer the primary navigation for report users.
+- Keep the landing report aggregate-only. Do not return or render file-level rows until the user
+  selects an exact Site that is inside the server-resolved scope.
+- On Site selection, read only that Site's inventory partition and keep file filters and pagination
+  scoped to the selected Site. Clear file filters when returning to the Site Explorer.
+- Build `Open SharePoint` only from a validated cached Site hostname/path on an approved SharePoint
+  cloud suffix. Open a new tab with `noopener noreferrer`; never call Graph on click or imply that
+  report visibility bypasses SharePoint authorization.
 - Expose a full hierarchy navigator only for a concrete admin, configuration, or hierarchy-analysis task. Do not add one merely to prove authorization.
 - Derive scope summaries, Site rows, filters, and counts only from server-authorized rollups. Ignore or reject requested node IDs outside `visibleNodeIds` and never use UI state to broaden data scope.
 - Clear incompatible Site and page filters when changing an authorized branch filter, while preserving relevant file filters.

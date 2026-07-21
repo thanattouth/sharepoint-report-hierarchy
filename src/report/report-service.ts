@@ -12,6 +12,7 @@ import type {
   SiteSensitivitySummary,
 } from "../domain/types";
 import { stableFileKey } from "../domain/types";
+import { sharePointSiteUrl } from "./sharepoint-url";
 
 export type DemoScenario =
   | "current"
@@ -68,7 +69,7 @@ export type ReportData = {
   siteRollups: Array<{
     siteId: string;
     siteName: string;
-    webUrl: string;
+    webUrl?: string;
     nodeId: string;
     nodeName: string;
     count: number;
@@ -257,9 +258,10 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
   }
 
   const siteFacetRows = filtered;
-  if (request.filters.siteId) {
-    filtered = filtered.filter((item) => item.siteId === request.filters.siteId);
-  }
+  const selectedSiteId = request.filters.siteId;
+  filtered = selectedSiteId
+    ? filtered.filter((item) => item.siteId === selectedSiteId)
+    : [];
 
   filtered = [...filtered].sort(
     (a, b) =>
@@ -304,7 +306,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
             (sum, siteId) => sum + (summaryBySite.get(siteId)?.sensitiveCount ?? 0),
             0,
           )
-        : dedupe(filtered.filter((item) => siteIds.has(item.siteId))).length,
+        : dedupe(siteFacetRows.filter((item) => siteIds.has(item.siteId))).length,
       siteCount: siteIds.size,
       childCount: visibleNodes.filter((candidate) => candidate.parentId === node.id).length,
     };
@@ -354,7 +356,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
       return {
         siteId: site.id,
         siteName: site.name,
-        webUrl: `https://${site.hostname}${site.path}`,
+        webUrl: sharePointSiteUrl(site.hostname, site.path),
         nodeId: mapping?.nodeId ?? "unmapped",
         nodeName: node?.name ?? "Unmapped",
         count: useSummaryProjection
@@ -379,14 +381,11 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
         count: dedupe(value.items).length,
       }));
 
-  const allLibraries = [...new Set(useSummaryProjection
-    ? [...summaryBySite.values()].flatMap((summary) =>
-        summary.libraryCounts.map((library) => library.libraryName),
-      )
-    : scopedInventory.map((item) => item.libraryName))].sort();
-  const allLabels = [...new Map((useSummaryProjection
-    ? [...summaryBySite.values()].flatMap((summary) => summary.labelCounts)
-    : sensitiveRows.flatMap((item) => item.sensitivityLabels))
+  const detailInventory = selectedSiteId
+    ? scopedInventory.filter((item) => item.siteId === selectedSiteId)
+    : [];
+  const allLibraries = [...new Set(detailInventory.map((item) => item.libraryName))].sort();
+  const allLabels = [...new Map(detailInventory.flatMap((item) => item.sensitivityLabels)
     .filter((label) => source.reportableLabelIds.has(label.id))
     .map((label) => [label.id, { id: label.id, name: label.displayName ?? label.id }]),
   ).values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -432,7 +431,7 @@ export function buildReport(source: ReportSource, request: ReportRequest): Repor
     lastSuccessfulScan: completedRun?.finishedAt ?? latestRun?.finishedAt,
     nextScheduledScan: source.nextScheduledScan ?? "2026-07-15T01:00:00+07:00",
     freshness,
-    detailsRequireSiteSelection: useSummaryProjection && !request.filters.siteId,
+    detailsRequireSiteSelection: !selectedSiteId,
   };
 }
 

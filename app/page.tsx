@@ -173,7 +173,7 @@ export default async function Home({
     (sitePage - 1) * SITE_PAGE_SIZE,
     sitePage * SITE_PAGE_SIZE,
   );
-  const selectedSite = report?.options.sites.find((site) => site.id === getSingle(params.site));
+  const selectedSite = report?.siteRollups.find((site) => site.siteId === getSingle(params.site));
 
   return (
     <div className="app-shell">
@@ -189,7 +189,7 @@ export default async function Home({
         <nav className="primary-nav" aria-label="เมนูหลัก">
           <a className="nav-item active" href="#overview">Overview</a>
           <a className="nav-item" href="#sites">Sites</a>
-          <a className="nav-item" href="#inventory">File inventory</a>
+          {selectedSite ? <a className="nav-item" href="#site-detail">Sensitive files</a> : null}
           <a className="nav-item" href="#scan-status">Scan status</a>
           {canManageSiteMappings
             ? <Link className="nav-item" href="/admin/site-mappings">Site mappings</Link>
@@ -218,7 +218,7 @@ export default async function Home({
               <p>ติดตาม Sensitivity Label จาก scheduled inventory ภายใน business scope ที่คุณรับผิดชอบ</p>
             </div>
             <div className="heading-actions">
-              {reportMode !== "azure-api" && report?.capability === "ReportAdmin" && !["no-assignment", "no-sites"].includes(report.state) ? (
+              {reportMode !== "azure-api" && report?.capability === "ReportAdmin" && selectedSite ? (
                 <a className="button button-secondary" href={`/export?${exportParams.toString()}`}>⇩ Export CSV</a>
               ) : (
                 <button className="button button-secondary" disabled title="ต้องใช้ ReportAdmin">⇩ Export CSV</button>
@@ -349,7 +349,7 @@ export default async function Home({
                       <div className="site-columns" aria-hidden="true"><span>SITE</span><span>BUSINESS MAPPING</span><span>LAST SCANNED</span><span>STATE</span><span>FILES</span></div>
                       <div className="site-list" aria-label="SharePoint Sites ที่มองเห็นได้">
                         {visibleSites.map((site) => (
-                          <a className={`site-row ${getSingle(params.site) === site.siteId ? "selected" : ""}`} href={makeHref(params, { site: site.siteId, siteQ: undefined, sitePage: undefined, page: undefined })} key={site.siteId}>
+                          <a className={`site-row ${getSingle(params.site) === site.siteId ? "selected" : ""}`} href={`${makeHref(params, { site: site.siteId, siteQ: undefined, sitePage: undefined, page: undefined })}#site-detail`} key={site.siteId}>
                             <span className="site-mark" aria-hidden="true">SP</span>
                             <span className="site-copy"><strong>{site.siteName}</strong><small>{site.siteId}</small></span>
                             <span className="site-meta"><small>BUSINESS MAPPING</small><strong>{site.nodeName}</strong></span>
@@ -365,45 +365,75 @@ export default async function Home({
                     </article>
                   </section>
 
-                  <section className="panel inventory-panel" id="inventory">
-                    <div className="panel-heading inventory-heading"><div><p className="eyebrow">FILE-LEVEL INVENTORY</p><h2>Sensitive files</h2><p>{report.filteredSensitiveCount} จาก {report.scopeSensitiveCount} files ภายใน resolved scope</p></div><span className="scope-stamp">SERVER FILTERED</span></div>
-                    <form className="filter-bar" method="get" aria-label="ตัวกรอง file inventory">
-                      {Object.entries(preserved).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
-                      <label className="search-field"><span aria-hidden="true">⌕</span><input name="q" defaultValue={getSingle(params.q)} placeholder="ค้นหาชื่อไฟล์หรือ path" aria-label="ค้นหาชื่อไฟล์หรือ path" /></label>
-                      <label><span className="sr-only">Hierarchy node</span><select name="node" defaultValue={getSingle(params.node) ?? ""}><option value="">ทุก hierarchy node</option>{report.options.nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
-                      <div className="site-filter-control" role="group" aria-label="Site filter">
-                        {selectedSite ? <input type="hidden" name="site" value={selectedSite.id} /> : null}
-                        <span>SITE</span><strong>{selectedSite?.name ?? "ทุก Site ใน scope"}</strong><a href={selectedSite ? makeHref(params, { site: undefined, page: undefined }) : "#sites"}>{selectedSite ? "ล้าง" : "เลือก"}</a>
+                  {selectedSite ? (
+                    <section className="panel site-detail-panel" id="site-detail" aria-labelledby="site-detail-heading">
+                      <div className="site-detail-hero">
+                        <nav className="site-breadcrumb" aria-label="เส้นทาง Site detail">
+                          <a href={`${makeHref(params, { site: undefined, q: undefined, library: undefined, label: undefined, status: undefined, freshness: undefined, page: undefined })}#sites`}>All Sites</a>
+                          <span aria-hidden="true">/</span>
+                          <strong>{selectedSite.siteName}</strong>
+                        </nav>
+                        <div className="site-detail-title">
+                          <span className="site-detail-mark" aria-hidden="true">SP</span>
+                          <div>
+                            <p className="eyebrow">AUTHORIZED SITE DETAIL</p>
+                            <h2 id="site-detail-heading">{selectedSite.siteName}</h2>
+                            <p>{selectedSite.nodeName} · Cached inventory · SharePoint ตรวจสิทธิ์อีกครั้งเมื่อเปิด Site</p>
+                          </div>
+                          {selectedSite.webUrl ? (
+                            <a className="button open-sharepoint-button" href={selectedSite.webUrl} target="_blank" rel="noopener noreferrer">Open SharePoint <span aria-hidden="true">↗</span></a>
+                          ) : (
+                            <span className="button open-sharepoint-button disabled" aria-disabled="true" title="SharePoint URL ไม่ผ่านการตรวจสอบ">Open SharePoint ↗</span>
+                          )}
+                        </div>
+                        <dl className="site-detail-stats">
+                          <div><dt>SENSITIVE FILES</dt><dd>{selectedSite.count.toLocaleString("en-US")}</dd></div>
+                          <div><dt>LIBRARIES</dt><dd>{report.options.libraries.length.toLocaleString("en-US")}</dd></div>
+                          <div><dt>LAST SCANNED</dt><dd>{formatDate(selectedSite.lastScannedAt)}</dd></div>
+                          <div><dt>STATE</dt><dd><span className={`site-scan-state scan-${selectedSite.scanState}`}>{siteScanLabels[selectedSite.scanState]}</span></dd></div>
+                        </dl>
                       </div>
-                      <label><span className="sr-only">Library</span><select name="library" defaultValue={getSingle(params.library) ?? ""}><option value="">ทุก library</option>{report.options.libraries.map((library) => <option key={library} value={library}>{library}</option>)}</select></label>
-                      <label><span className="sr-only">Sensitivity label</span><select name="label" defaultValue={getSingle(params.label) ?? ""}><option value="">ทุก label</option>{report.options.labels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}</select></label>
-                      <label><span className="sr-only">Scan status</span><select name="status" defaultValue={getSingle(params.status) ?? ""}><option value="">ทุก status</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-                      <label><span className="sr-only">Freshness</span><select name="freshness" defaultValue={getSingle(params.freshness) ?? ""}><option value="">ทุก freshness</option><option value="current">Current ≤ 24h</option><option value="stale">Stale &gt; 24h</option></select></label>
-                      <button className="button filter-button" type="submit">กรองข้อมูล</button>
-                      <a className="clear-link" href={makeHref({}, preserved)}>ล้าง</a>
-                    </form>
 
-                    <div className="table-wrap">
-                      <table>
-                        <thead><tr><th>FILE</th><th>SITE / LIBRARY</th><th>LABEL</th><th>SCAN STATUS</th><th>LAST SCANNED</th><th><span className="sr-only">รายละเอียด</span></th></tr></thead>
-                        <tbody>
-                          {report.rows.map((item) => {
-                            const label = item.sensitivityLabels[0];
-                            return <tr key={`${item.siteId}:${item.driveId}:${item.itemId}`}>
-                              <td><span className="file-cell"><span className="file-type">{item.fileName.split(".").pop()?.slice(0, 3).toUpperCase()}</span><span><strong>{item.fileName}</strong><small>{item.filePath}</small></span></span></td>
-                              <td><strong>{item.siteName}</strong><small>{item.libraryName}</small></td>
-                              <td><span className="sensitivity-label"><i />{label?.displayName ?? "Sensitive"}</span><small>{label?.assignmentMethod ?? "unknown"}</small></td>
-                              <td><StatusBadge status={item.scanStatus} />{item.errorCode ? <small>Error {item.errorCode}</small> : null}</td>
-                              <td><strong>{formatDate(item.scannedAt)}</strong><small>{item.modifiedAt ? `Modified ${formatDate(item.modifiedAt)}` : ""}</small></td>
-                              <td><details className="row-details"><summary aria-label={`ดูรายละเอียด ${item.fileName}`}>•••</summary><div><b>Stable identity</b><code>{item.siteId}:{item.driveId}:{item.itemId}</code><b>Label ID</b><code>{label?.id}</code>{item.errorMessage ? <p>{item.errorMessage}</p> : null}</div></details></td>
-                            </tr>;
-                          })}
-                          {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">{report.detailsRequireSiteSelection ? "เลือก SharePoint Site ที่ได้รับอนุญาตจาก Site explorer ก่อนโหลด file-level inventory" : "ไม่พบ Sensitive file ที่ตรงกับ filters ปัจจุบัน"}</td></tr> : null}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="pagination"><span>หน้า {report.page} จาก {report.pageCount}</span><div><a className={report.page <= 1 ? "disabled" : ""} aria-disabled={report.page <= 1} href={makeHref(params, { page: String(Math.max(report.page - 1, 1)) })}>← ก่อนหน้า</a><a className={report.page >= report.pageCount ? "disabled" : ""} aria-disabled={report.page >= report.pageCount} href={makeHref(params, { page: String(Math.min(report.page + 1, report.pageCount)) })}>ถัดไป →</a></div></div>
-                  </section>
+                      <div className="inventory-heading-inline"><div><p className="eyebrow">FILE-LEVEL INVENTORY</p><h3>Sensitive files</h3><p>{report.filteredSensitiveCount} จาก {selectedSite.count} files ภายใน Site นี้</p></div><span className="scope-stamp">SERVER FILTERED</span></div>
+                      <form className="filter-bar site-detail-filters" method="get" action="/#site-detail" aria-label="ตัวกรอง Sensitive files ภายใน Site">
+                        {Object.entries(preserved).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
+                        <input type="hidden" name="site" value={selectedSite.siteId} />
+                        <label className="search-field"><span aria-hidden="true">⌕</span><input name="q" defaultValue={getSingle(params.q)} placeholder="ค้นหาชื่อไฟล์หรือ path" aria-label="ค้นหาชื่อไฟล์หรือ path" /></label>
+                        <label><span className="sr-only">Library</span><select name="library" defaultValue={getSingle(params.library) ?? ""}><option value="">ทุก library</option>{report.options.libraries.map((library) => <option key={library} value={library}>{library}</option>)}</select></label>
+                        <label><span className="sr-only">Sensitivity label</span><select name="label" defaultValue={getSingle(params.label) ?? ""}><option value="">ทุก label</option>{report.options.labels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}</select></label>
+                        <label><span className="sr-only">Scan status</span><select name="status" defaultValue={getSingle(params.status) ?? ""}><option value="">ทุก status</option>{Object.entries(statusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+                        <label><span className="sr-only">Freshness</span><select name="freshness" defaultValue={getSingle(params.freshness) ?? ""}><option value="">ทุก freshness</option><option value="current">Current ≤ 24h</option><option value="stale">Stale &gt; 24h</option></select></label>
+                        <button className="button filter-button" type="submit">กรองข้อมูล</button>
+                        <a className="clear-link" href={`${makeHref({}, { ...preserved, site: selectedSite.siteId })}#site-detail`}>ล้าง</a>
+                      </form>
+
+                      <div className="table-wrap">
+                        <table>
+                          <thead><tr><th>FILE</th><th>LIBRARY</th><th>LABEL</th><th>SCAN STATUS</th><th>LAST SCANNED</th><th><span className="sr-only">รายละเอียด</span></th></tr></thead>
+                          <tbody>
+                            {report.rows.map((item) => {
+                              const label = item.sensitivityLabels[0];
+                              return <tr key={`${item.siteId}:${item.driveId}:${item.itemId}`}>
+                                <td><span className="file-cell"><span className="file-type">{item.fileName.split(".").pop()?.slice(0, 3).toUpperCase()}</span><span><strong>{item.fileName}</strong><small>{item.filePath}</small></span></span></td>
+                                <td><strong>{item.libraryName}</strong><small>{selectedSite.siteName}</small></td>
+                                <td><span className="sensitivity-label"><i />{label?.displayName ?? "Sensitive"}</span><small>{label?.assignmentMethod ?? "unknown"}</small></td>
+                                <td><StatusBadge status={item.scanStatus} />{item.errorCode ? <small>Error {item.errorCode}</small> : null}</td>
+                                <td><strong>{formatDate(item.scannedAt)}</strong><small>{item.modifiedAt ? `Modified ${formatDate(item.modifiedAt)}` : ""}</small></td>
+                                <td><details className="row-details"><summary aria-label={`ดูรายละเอียด ${item.fileName}`}>•••</summary><div><b>Stable identity</b><code>{item.siteId}:{item.driveId}:{item.itemId}</code><b>Label ID</b><code>{label?.id}</code>{item.errorMessage ? <p>{item.errorMessage}</p> : null}</div></details></td>
+                              </tr>;
+                            })}
+                            {report.rows.length === 0 ? <tr><td colSpan={6} className="no-results">ไม่พบ Sensitive file ที่ตรงกับ filters ปัจจุบัน</td></tr> : null}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="pagination"><span>หน้า {report.page} จาก {report.pageCount}</span><div><a className={report.page <= 1 ? "disabled" : ""} aria-disabled={report.page <= 1} href={`${makeHref(params, { page: String(Math.max(report.page - 1, 1)) })}#site-detail`}>← ก่อนหน้า</a><a className={report.page >= report.pageCount ? "disabled" : ""} aria-disabled={report.page >= report.pageCount} href={`${makeHref(params, { page: String(Math.min(report.page + 1, report.pageCount)) })}#site-detail`}>ถัดไป →</a></div></div>
+                    </section>
+                  ) : (
+                    <section className="site-selection-callout" id="site-detail" aria-label="เลือก Site เพื่อดู Sensitive files">
+                      <span aria-hidden="true">↓</span>
+                      <div><strong>เลือก SharePoint Site เพื่อดู Sensitive files</strong><p>File-level inventory จะโหลดจาก cache เฉพาะ Site ที่ได้รับอนุญาตหลังจากคุณเลือกเท่านั้น</p></div>
+                    </section>
+                  )}
                 </>
 
               <section className="panel scan-panel" id="scan-status">

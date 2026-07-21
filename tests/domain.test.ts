@@ -252,7 +252,9 @@ test("counts reconcile with distinct filtered file rows", () => {
     capability: "ReportAdmin",
   });
   assert.equal(report.scopeSensitiveCount, 10);
+  assert.equal(report.filteredSensitiveCount, 0);
   assert.equal(report.filteredSensitiveCount, report.rows.length);
+  assert.equal(report.detailsRequireSiteSelection, true);
   assert.equal(report.siteRollups.reduce((sum, site) => sum + site.count, 0), 10);
 
   const filtered = buildReport(source, request("nipaporn@contoso.com", { siteId: "site-aurora", pageSize: 50 }));
@@ -264,10 +266,14 @@ test("counts reconcile with distinct filtered file rows", () => {
 test("reportable label filter separates Confidential from Secret", () => {
   const confidential = buildReport(
     source,
-    request("nipaporn@contoso.com", { labelId: "label-confidential-th", pageSize: 50 }),
+    request("nipaporn@contoso.com", {
+      siteId: "site-aurora",
+      labelId: "label-confidential-th",
+      pageSize: 50,
+    }),
   );
   assert.equal(confidential.scopeSensitiveCount, 10);
-  assert.equal(confidential.filteredSensitiveCount, 4);
+  assert.equal(confidential.filteredSensitiveCount, 1);
   assert.ok(confidential.rows.every((row) =>
     row.sensitivityLabels.some((label) => label.id === "label-confidential-th"),
   ));

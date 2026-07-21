@@ -105,7 +105,7 @@ export async function loadReportSource(
     runs: [],
     reportableLabelIds: cacheConfig.reportableLabelIds,
     siteSummaries: [],
-    inventoryCoverage: "scope",
+    inventoryCoverage: "selected-site",
     now: new Date(),
     nextScheduledScan: cacheConfig.nextScheduledScan,
   };
@@ -118,16 +118,7 @@ export async function loadReportSource(
   if (scope.allowedSiteIds.length === 0 || request.scenario === "no-scan") return base;
 
   const selectedSiteId = request.filters.siteId;
-  const inventoryCoverage = selectedSiteId && scope.allowedSiteIds.length > 1
-    ? "selected-site"
-    : !selectedSiteId && scope.allowedSiteIds.length > cacheConfig.maxDetailSites
-      ? "selected-site"
-      : "scope";
-  const detailSiteIds = selectedSiteId
-    ? [selectedSiteId]
-    : inventoryCoverage === "scope"
-      ? scope.allowedSiteIds
-      : [];
+  const detailSiteIds = selectedSiteId ? [selectedSiteId] : [];
   const [siteSummaries, runs, inventory] = await Promise.all([
     stores.siteSummaryStore.listBySiteIds(scope.allowedSiteIds),
     stores.scanRunStore.listRecent(),
@@ -138,6 +129,6 @@ export async function loadReportSource(
     inventory,
     runs,
     siteSummaries,
-    inventoryCoverage,
+    inventoryCoverage: "selected-site",
   };
 }

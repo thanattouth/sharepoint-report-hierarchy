@@ -20,12 +20,12 @@ test("server-renders the scoped report prototype", async () => {
   assert.match(html, /<title>Sensitivity Report \| SharePoint Governance<\/title>/i);
   assert.match(html, /Sensitive file exposure/);
   assert.match(html, /Confidential/);
-  assert.match(html, /SERVER FILTERED/);
   assert.match(html, /RESOLVED DEMO SCOPE/);
   assert.match(html, /AUTHORIZED SHAREPOINT INVENTORY/);
   assert.match(html, /Scheduled cache/);
   assert.doesNotMatch(html, /Business visibility|scope-explorer|tree-line/);
-  assert.match(html, /FY27-Strategy\.pdf/);
+  assert.match(html, /เลือก SharePoint Site เพื่อดู Sensitive files/);
+  assert.doesNotMatch(html, /FY27-Strategy\.pdf|Cashflow-Forecast\.xlsx/);
   assert.match(html, /Project Ledger/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
@@ -54,6 +54,21 @@ test("SharePoint sites render as a separate searchable flat inventory", async ()
   assert.doesNotMatch(siteExplorer, /Project Aurora/);
 });
 
+test("selected Site owns its Sensitive files and opens canonical SharePoint in a new tab", async () => {
+  const response = await render("/?site=site-aurora");
+  const html = await response.text();
+  const detail = html.match(/<section class="panel site-detail-panel"[\s\S]*?<section class="panel scan-panel"/)?.[0] ?? html;
+  assert.match(detail, /AUTHORIZED SITE DETAIL/);
+  assert.match(detail, /Project Aurora/);
+  assert.match(detail, /FY27-Strategy\.pdf/);
+  assert.match(detail, /M&amp;A-Target-Assessment\.docx/);
+  assert.doesNotMatch(detail, /Cashflow-Forecast\.xlsx|Launch-Readiness\.xlsx/);
+  assert.match(detail, /href="https:\/\/contoso\.sharepoint\.com\/sites\/project-aurora"/);
+  assert.match(detail, /target="_blank"/);
+  assert.match(detail, /rel="noopener noreferrer"/);
+  assert.match(detail, /Open SharePoint/);
+});
+
 test("department persona sees only server-resolved descendant Sites", async () => {
   const response = await render("/?user=anan%40contoso.com&capability=ReportViewer");
   const html = await response.text();
@@ -74,7 +89,7 @@ test("separate EVP persona cannot see another EVP tree", async () => {
 });
 
 test("project persona receives only its server-resolved site", async () => {
-  const response = await render("/?user=prach%40contoso.com&capability=ReportViewer");
+  const response = await render("/?user=prach%40contoso.com&capability=ReportViewer&site=site-aurora");
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /FY27-Strategy\.pdf/);
