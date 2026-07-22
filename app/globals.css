@@ -13,9 +13,9 @@
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
-  --font-display: "General Sans", var(--font-thai), sans-serif;
-  --font-body-stack: var(--font-body), var(--font-thai), sans-serif;
-  --font-mono-stack: var(--font-code), monospace;
+  --font-display: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", "Noto Sans Thai", "Leelawadee UI", sans-serif;
+  --font-body-stack: "Aptos", "Segoe UI Variable Text", "Segoe UI", "Noto Sans Thai", "Leelawadee UI", sans-serif;
+  --font-mono-stack: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }

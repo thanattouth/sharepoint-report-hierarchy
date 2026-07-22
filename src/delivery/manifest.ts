@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { BusinessRole, GovernanceHierarchyNode } from "../domain/types";
 import { validateHierarchyConfiguration } from "../domain/hierarchy";
 
-export const CUSTOMER_DELIVERY_SCHEMA_VERSION = 2 as const;
+export const CUSTOMER_DELIVERY_SCHEMA_VERSION = 3 as const;
 
 export type CustomerDeliveryManifest = {
   schemaVersion: typeof CUSTOMER_DELIVERY_SCHEMA_VERSION;
@@ -22,8 +22,6 @@ export type CustomerDeliveryManifest = {
     appServicePlanName: string;
     keyVaultName: string;
     skuName: "B1" | "S1" | "P0v3";
-    reportApiFunctionAppName: string;
-    configurationAdminFunctionAppName: string;
     groupPickerEnabled: boolean;
   };
   workloads?: {
@@ -174,22 +172,16 @@ export function parseCustomerDeliveryManifest(input: unknown): CustomerDeliveryM
       "appServicePlanName",
       "keyVaultName",
       "skuName",
-      "reportApiFunctionAppName",
-      "configurationAdminFunctionAppName",
       "groupPickerEnabled",
     ], "manifest.webHosting");
     const appServiceName = string(webHostingInput.appServiceName, "manifest.webHosting.appServiceName").toLowerCase();
     const appServicePlanName = string(webHostingInput.appServicePlanName, "manifest.webHosting.appServicePlanName");
     const keyVaultName = string(webHostingInput.keyVaultName, "manifest.webHosting.keyVaultName");
     const skuName = string(webHostingInput.skuName, "manifest.webHosting.skuName");
-    const reportApiFunctionAppName = string(webHostingInput.reportApiFunctionAppName, "manifest.webHosting.reportApiFunctionAppName").toLowerCase();
-    const configurationAdminFunctionAppName = string(webHostingInput.configurationAdminFunctionAppName, "manifest.webHosting.configurationAdminFunctionAppName").toLowerCase();
     if (!WEB_RESOURCE_NAME.test(appServiceName)) throw new Error("manifest.webHosting.appServiceName is invalid");
     if (!APP_SERVICE_PLAN_NAME.test(appServicePlanName)) throw new Error("manifest.webHosting.appServicePlanName is invalid");
     if (!KEY_VAULT_NAME.test(keyVaultName)) throw new Error("manifest.webHosting.keyVaultName is invalid");
     if (!["B1", "S1", "P0v3"].includes(skuName)) throw new Error("manifest.webHosting.skuName must be B1, S1, or P0v3");
-    if (!WEB_RESOURCE_NAME.test(reportApiFunctionAppName)) throw new Error("manifest.webHosting.reportApiFunctionAppName is invalid");
-    if (!WEB_RESOURCE_NAME.test(configurationAdminFunctionAppName)) throw new Error("manifest.webHosting.configurationAdminFunctionAppName is invalid");
     if (typeof webHostingInput.groupPickerEnabled !== "boolean") {
       throw new Error("manifest.webHosting.groupPickerEnabled must be boolean");
     }
@@ -202,8 +194,6 @@ export function parseCustomerDeliveryManifest(input: unknown): CustomerDeliveryM
       appServicePlanName,
       keyVaultName,
       skuName: skuName as "B1" | "S1" | "P0v3",
-      reportApiFunctionAppName,
-      configurationAdminFunctionAppName,
       groupPickerEnabled: webHostingInput.groupPickerEnabled,
     };
   }

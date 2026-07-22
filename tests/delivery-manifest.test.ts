@@ -5,7 +5,7 @@ import { parseCustomerDeliveryManifest } from "../src/delivery/manifest";
 
 function manifest(overrides: Record<string, unknown> = {}) {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     deploymentName: "customer-single-tenant",
     tenantId: "11111111-1111-4111-8111-111111111111",
     subscriptionId: "22222222-2222-4222-8222-222222222222",
@@ -78,8 +78,6 @@ test("requires the exact App Service callback when customer web hosting is confi
         appServicePlanName: "plan-sp-sens-web-customer-sea",
         keyVaultName: "kv-sp-sens-customer",
         skuName: "B1",
-        reportApiFunctionAppName: "func-sp-sens-report-customer",
-        configurationAdminFunctionAppName: "func-sp-sens-config-customer",
         groupPickerEnabled: false,
       },
     })),

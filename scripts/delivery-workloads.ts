@@ -74,6 +74,25 @@ const account = azJson<{ tenantId: string; id: string }>(["account", "show", "--
 if (account.tenantId.toLowerCase() !== manifest.tenantId.toLowerCase() || account.id.toLowerCase() !== manifest.subscriptionId.toLowerCase()) {
   throw new Error("Azure CLI tenant/subscription does not match the delivery manifest");
 }
+const operator = azJson<{ id: string }>([
+  "ad", "signed-in-user", "show", "--query", "{id:id}",
+]);
+const operatorRoles = azJson<Array<{ roleDefinitionName: string }>>([
+  "role", "assignment", "list",
+  "--subscription", manifest.subscriptionId,
+  "--assignee-object-id", operator.id,
+  "--all", "--include-inherited",
+  "--query", "[].{roleDefinitionName:roleDefinitionName}",
+]);
+if (!operatorRoles.some(({ roleDefinitionName }) => [
+  "Owner",
+  "Role Based Access Control Administrator",
+  "User Access Administrator",
+].includes(roleDefinitionName))) {
+  throw new Error(
+    "Workload deployment requires permission to create exact-scope managed-identity role assignments",
+  );
+}
 const scannerClientId = exactApplicationId(manifest.entra.scannerAppDisplayName);
 const labelIds = workloads.scanner.reportableLabels.map(({ id }) => id).join(",");
 const labelDisplayNames = JSON.stringify(Object.fromEntries(

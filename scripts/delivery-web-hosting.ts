@@ -3,6 +3,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadCustomerDeliveryManifest } from "../src/delivery/manifest";
+import {
+  DELIVERY_DEPLOYMENTS,
+  workloadFunctionAppNames,
+} from "../src/delivery/deployment-outputs";
+import { deliveryDeploymentOutputs } from "../src/delivery/azure-cli";
 
 function argument(name: string): string {
   const index = process.argv.indexOf(name);
@@ -62,6 +67,13 @@ const webServicePrincipals = azJson<Array<{ id: string; appRoleAssignmentRequire
   "--query", "[].{id:id,appRoleAssignmentRequired:appRoleAssignmentRequired}",
 ]);
 if (webServicePrincipals.length !== 1) throw new Error("Expected exactly one Report Web enterprise application");
+const workloadNames = workloadFunctionAppNames({
+  reportApi: deliveryDeploymentOutputs(manifest, DELIVERY_DEPLOYMENTS.reportApi),
+  configurationAdminApi: deliveryDeploymentOutputs(
+    manifest,
+    DELIVERY_DEPLOYMENTS.configurationAdminApi,
+  ),
+});
 
 if (hosting.groupPickerEnabled) {
   const grants = azJson<{ value: Array<{ consentType: string; scope: string }> }>([
@@ -89,8 +101,8 @@ writeFileSync(parameterFile, JSON.stringify({
     entraClientId: { value: webApplication.appId },
     webOrigin: { value: webOrigin },
     groupPickerEnabled: { value: hosting.groupPickerEnabled },
-    reportApiFunctionAppName: { value: hosting.reportApiFunctionAppName },
-    configurationAdminFunctionAppName: { value: hosting.configurationAdminFunctionAppName },
+    reportApiFunctionAppName: { value: workloadNames.reportApi },
+    configurationAdminFunctionAppName: { value: workloadNames.configurationAdminApi },
     tags: { value: manifest.tags },
   },
 }), { mode: 0o600 });

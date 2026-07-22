@@ -4,6 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { loadCustomerDeliveryManifest } from "../src/delivery/manifest";
+import {
+  DELIVERY_DEPLOYMENTS,
+  workloadFunctionAppNames,
+} from "../src/delivery/deployment-outputs";
+import { deliveryDeploymentOutputs } from "../src/delivery/azure-cli";
 
 const SECRET_NAMES = [
   "entra-client-secret",
@@ -103,6 +108,13 @@ if (account.tenantId.toLowerCase() !== manifest.tenantId.toLowerCase() || accoun
   throw new Error("Azure CLI tenant/subscription does not match the delivery manifest");
 }
 const webApplication = exactWebApplication(manifest.entra.webAppDisplayName);
+const workloadNames = workloadFunctionAppNames({
+  reportApi: deliveryDeploymentOutputs(manifest, DELIVERY_DEPLOYMENTS.reportApi),
+  configurationAdminApi: deliveryDeploymentOutputs(
+    manifest,
+    DELIVERY_DEPLOYMENTS.configurationAdminApi,
+  ),
+});
 const existingSecrets = new Set(azJson<Array<{ name: string }>>([
   "keyvault", "secret", "list", "--vault-name", hosting.keyVaultName, "--query", "[].{name:name}",
 ]).map(({ name }) => name));
@@ -118,12 +130,12 @@ if (!rotate && managedSecrets.length > 0) {
 const reportFunctionKey = ensureBridgeFunctionKey(
   manifest.subscriptionId,
   manifest.resourceGroupName,
-  hosting.reportApiFunctionAppName,
+  workloadNames.reportApi,
 );
 const configurationFunctionKey = ensureBridgeFunctionKey(
   manifest.subscriptionId,
   manifest.resourceGroupName,
-  hosting.configurationAdminFunctionAppName,
+  workloadNames.configurationAdminApi,
 );
 const sessionSecret = randomBytes(32).toString("base64url");
 const credentialDisplayName = `appservice-${hosting.appServiceName}-${new Date().toISOString().slice(0, 10)}`;

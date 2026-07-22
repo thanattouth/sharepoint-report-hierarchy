@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "deploymentName": "customer-single-tenant",
   "tenantId": "00000000-0000-4000-8000-000000000000",
   "subscriptionId": "00000000-0000-4000-8000-000000000000",
@@ -19,8 +19,6 @@
     "appServicePlanName": "plan-sp-sens-web-customer-sea",
     "keyVaultName": "kv-sp-sens-customer",
     "skuName": "B1",
-    "reportApiFunctionAppName": "func-sp-sens-report-customer",
-    "configurationAdminFunctionAppName": "func-sp-sens-config-customer",
     "groupPickerEnabled": false
   },
   "workloads": {

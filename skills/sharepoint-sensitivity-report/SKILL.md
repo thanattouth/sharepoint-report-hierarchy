@@ -1,6 +1,6 @@
 ---
 name: sharepoint-sensitivity-report
-description: Build, review, test, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, scoped export, authorization tests, Microsoft Graph scanning, Azure scheduling, report API hosting, or persistent business-scope administration.
+description: Build, review, test, document, deliver, and evolve the standalone SharePoint Sensitivity Label Report in this repository. Use for hierarchy scope, cached sensitivity-label reporting, scanner/store contracts, Genesis UI changes, authorization tests, Microsoft Graph scanning, Azure scheduling, report API hosting, persistent business-scope administration, feature documentation, or single-tenant customer delivery.
 ---
 
 # SharePoint Sensitivity Report
@@ -17,6 +17,10 @@ Read these files completely before changing the product:
 4. `../../docs/adr/0002-separate-business-hierarchy-from-sharepoint-sites.md` — scope/site boundary.
 5. `../../docs/adr/0009-persist-business-scope-configuration.md` — canonical placement and admin-write boundary.
 
+For user/admin documentation work, also read `../../docs/feature-guide.md`. For clone, delivery,
+deployment, or rollback work, also read `../../docs/customer-single-tenant-delivery.md` and
+`../../docs/adr/0014-use-one-manifest-and-deployment-outputs-for-delivery.md`.
+
 Then inspect only the implementation files relevant to the request. Do not infer current completion from this skill; verify it from code, tests, and git state.
 
 ## Classify the work
@@ -31,6 +35,10 @@ Place the request in one category before editing:
 - **P6 report API:** read-only Azure cache boundary and secure Sites integration.
 - **P7 configuration:** persistent hierarchy, User/Group assignments, canonical Site placements, audit, migration, or admin UX.
 - **P8 web authorization:** single-tenant Entra OIDC, app roles, protected administration, session handling, or verified audit actors.
+- **Customer delivery:** manifest schema, preflight, infrastructure/identity provisioning,
+  workload federation/package/publish/check, App Service, rollback, or customer handoff.
+- **Feature documentation:** user flows, administrator procedures, feature status, operational
+  states, or security-boundary explanations.
 
 Keep work inside the current category unless the user explicitly expands scope.
 
@@ -364,6 +372,19 @@ For this repository's hosted cross-tenant pilot:
 - Keep customer identifiers and resource names in a validated ignored delivery manifest, with no
   secrets, Function keys, tokens, or file metadata. Bind every preflight and deployment to the
   manifest tenant and subscription, and run What-if before mutation.
+- Use customer manifest schema v3 as the only production delivery input. Derive Function App names,
+  managed-identity IDs, endpoints, and federation subjects from immutable Azure deployment outputs;
+  never copy derived values into the manifest or a production `.env` file.
+- Use the `delivery:* --manifest` workflow for production. Keep `p4:*`, `p5:*`, `p6:*`, and `p7:*`
+  env-profile commands as bounded pilot/operator tools only. Sanitize managed env keys before any
+  manifest-driven child process so a cloned repository cannot inherit another tenant's profile.
+- Follow the guarded sequence: preflight; Foundation What-if/deploy; Entra plan/apply and explicit
+  consent; workload What-if/deploy; scanner federation plan/apply; workload package/publish/check;
+  access plan/apply; configuration bootstrap; Web What-if/deploy/secrets/package/publish/check; UAT.
+- Keep schedules disabled through initial delivery and verify all three Function Apps, core indexed
+  functions, workload RBAC, tenant-pinned scanner federation, HTTPS-only state, and disabled timers
+  before bootstrapping users or approving a baseline. Query Flex Consumption control-plane state
+  through `Microsoft.Web/sites@2024-04-01`; generic `az functionapp show` may return null properties.
 - Recreate Entra applications, service principals, managed identities, and exact-scope RBAC in the
   customer tenant. Rediscover SharePoint Sites, sensitivity labels, and Entra groups, then rebind
   portable business nodes to immutable target IDs.
@@ -381,14 +402,9 @@ For this repository's hosted cross-tenant pilot:
   groups or app-role assignments, verify direct bootstrap membership, and fail on duplicate group
   display names. Bootstrap hierarchy, group scope, Site placement, and audit events idempotently;
   never overwrite conflicting customer configuration.
-- In Vinext/Cloudflare local UAT, process-scoped bindings require
-  `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` when no `.dev.vars` file exists. A fixture-mode render after
-  setting shell variables is not proof of the Azure/Entra path; verify an Entra redirect and the
-  absence of persona/capability selectors before accepting UAT.
-- Treat Sites environment replacement as a separate cutover because existing secret values are
-  non-exportable. Preserve a recoverable source runtime in an approved secret manager or deploy a
-  separate customer-owned host before overwriting client/session secrets and Function keys. Never
-  call an available old source version a rollback if its required runtime secrets cannot be restored.
+- Use customer-owned Azure App Service as the production Web host. Keep the previous package and Key
+  Vault secret versions through the approved rollback window; do not overwrite another tenant's
+  hosted environment or reuse its OIDC/session/Function-key values.
 
 ### Entra-backed report visibility and group picker
 

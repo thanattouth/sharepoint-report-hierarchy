@@ -1,25 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { DM_Sans, JetBrains_Mono, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
-
-const body = DM_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const thai = Noto_Sans_Thai({
-  variable: "--font-thai",
-  subsets: ["thai", "latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const mono = JetBrains_Mono({
-  variable: "--font-code",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -68,16 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th">
-      <head>
-        <link rel="preconnect" href="https://api.fontshare.com" />
-        <link
-          rel="stylesheet"
-          href="https://api.fontshare.com/v2/css?f[]=general-sans@600,700&display=swap"
-        />
-      </head>
-      <body className={`${body.variable} ${thai.variable} ${mono.variable}`}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

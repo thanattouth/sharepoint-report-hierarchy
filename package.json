@@ -25,6 +25,12 @@
     "delivery:configuration:bootstrap": "node --import tsx scripts/delivery-bootstrap-configuration.ts --apply",
     "delivery:workloads:what-if": "node --import tsx scripts/delivery-workloads.ts --what-if",
     "delivery:workloads:deploy": "node --import tsx scripts/delivery-workloads.ts --deploy",
+    "delivery:scanner:federation:plan": "node --import tsx scripts/delivery-scanner-federation.ts --plan",
+    "delivery:scanner:federation:apply": "node --import tsx scripts/delivery-scanner-federation.ts --apply",
+    "delivery:workloads:package": "node scripts/delivery-package-workloads.mjs",
+    "delivery:workloads:publish:plan": "node --import tsx scripts/delivery-publish-workloads.ts --plan",
+    "delivery:workloads:publish:apply": "node --import tsx scripts/delivery-publish-workloads.ts --apply",
+    "delivery:workloads:check": "node --import tsx scripts/delivery-check-workloads.ts",
     "delivery:web:what-if": "node --import tsx scripts/delivery-web-hosting.ts --what-if",
     "delivery:web:deploy": "node --import tsx scripts/delivery-web-hosting.ts --deploy",
     "delivery:web:secrets": "node --import tsx scripts/delivery-web-secrets.ts --provision",
@@ -80,7 +86,7 @@
   "dependencies": {
     "@azure/data-tables": "^13.3.2",
     "@azure/identity": "^4.13.1",
-    "next": "16.2.6",
+    "next": "16.2.11",
     "openid-client": "^6.8.4",
     "react": "19.2.6",
     "react-dom": "19.2.6"
@@ -102,6 +108,11 @@
     "vinext": "0.0.50",
     "vite": "^8.1.4",
     "wrangler": "^4.102.0"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.10.1",
+    "postcss": "8.5.21",
+    "sharp": "0.35.3"
   },
   "type": "module"
 }

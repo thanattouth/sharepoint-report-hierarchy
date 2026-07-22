@@ -9,6 +9,9 @@ configuration.
 
 - Keep customer-specific values in an ignored `delivery-instances/<customer>/manifest.json` copied
   from `config/customer-delivery.example.json`.
+- Schema v3 is the only production delivery input. Workload Function App names and managed-identity
+  IDs are derived from Azure deployment outputs; never copy them into the manifest or a local env
+  profile.
 - The manifest contains identifiers and resource names only. Never place credentials, Function
   keys, Entra client secrets, file metadata, or Graph tokens in it.
 - Run preflight before every mutation. It fails closed when Azure CLI targets another tenant or
@@ -28,6 +31,27 @@ configuration.
   tenant; do not migrate the pilot inventory or delta cursors.
 - Keep the source deployment intact until target smoke tests and customer UAT pass. Cutover and
   source teardown are separate approved operations.
+
+## Clone-to-production prerequisites
+
+Install Node.js 22.13 or later, npm, Azure CLI, Azure Bicep and zip. Clone the repository, run
+`npm ci`, copy the example manifest into the ignored customer directory and replace every example
+identifier with values rediscovered in the target tenant.
+
+The delivery operator must sign in to the exact target tenant/subscription. Foundation deployment
+requires resource Contributor access. Workload and Web deployment additionally require Owner,
+Role Based Access Control Administrator or User Access Administrator because the templates create
+least-privilege managed-identity assignments. Microsoft Graph admin consent remains a separate
+customer-admin approval.
+
+### Migrate a schema-v2 manifest
+
+Change `schemaVersion` to `3` and remove the generated fields
+`webHosting.reportApiFunctionAppName` and
+`webHosting.configurationAdminFunctionAppName`. Do not change tenant/subscription/resource names
+during this manifest-only migration. Then rerun preflight, scanner federation plan, workload check
+and Web What-if before any deploy or publish operation. See
+[ADR 0014](adr/0014-use-one-manifest-and-deployment-outputs-for-delivery.md).
 
 ## Foundation rehearsal
 
@@ -70,8 +94,26 @@ This creates separate Scanner, Report API, and Configuration Admin Function Apps
 managed identities, telemetry, and exact-scope role assignments. It does not publish code or start
 a scan. The workload manifest must keep `schedulesDisabled=true` during initial delivery.
 
-After packaging and publishing the three Functions, create the customer-managed access groups and
-bootstrap the portable hierarchy. Always inspect the access plan first:
+Configure scanner workload federation, package all three Functions, publish them and run the
+read-only workload check. Every command reads the same manifest and ignores populated pilot env
+profiles:
+
+```bash
+npm run delivery:scanner:federation:plan -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:scanner:federation:apply -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:workloads:package
+npm run delivery:workloads:publish:plan -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:workloads:publish:apply -- --manifest delivery-instances/<customer>/manifest.json
+npm run delivery:workloads:check -- --manifest delivery-instances/<customer>/manifest.json
+```
+
+The federation step binds the target-tenant Scanner App Registration to the managed identity
+created by the scanner deployment. Publish fails closed if that credential is missing or drifted.
+The workload check verifies all three Function Apps, indexed core functions, exact workload RBAC,
+tenant-pinned federation, HTTPS-only state and disabled schedules without returning file metadata.
+
+After workload verification, create the customer-managed access groups and bootstrap the portable
+hierarchy. Always inspect the access plan first:
 
 ```bash
 npm run delivery:access:plan -- --manifest delivery-instances/<customer>/manifest.json
@@ -85,7 +127,7 @@ application. The configuration bootstrap resolves those groups by immutable targ
 ID, imports only the manifest nodes, assigns scope, places the controlled Site, writes audit events,
 and reads the result back for validation. It never imports source-tenant users, groups, Site IDs, or
 inventory. Reruns are idempotent; conflicting existing rows fail closed instead of being overwritten.
-The schema-v2 manifest has no Report API user allowlist: adding or removing report users is an Entra
+The schema-v3 manifest has no Report API user allowlist: adding or removing report users is an Entra
 group membership operation, while immutable group-to-business-node assignments remain in Azure Table.
 
 For local Vinext/Cloudflare UAT without a `.dev.vars` file, pass
@@ -96,7 +138,8 @@ the production Sites environment until local Entra, report, admin, and logout UA
 ## Customer-owned Azure App Service
 
 Add `webHosting` to the ignored customer manifest with globally unique Web App and Key Vault names,
-the exact deployed Function App names, an explicit SKU, and the group-picker feature gate. Include
+an explicit SKU, and the group-picker feature gate. Report and Configuration Function App names are
+resolved from their deployment outputs. Include
 both the local callback (when local UAT is retained) and the exact production callback
 `https://<app-name>.azurewebsites.net/api/auth/entra/callback` in `entra.webRedirectUris`.
 
@@ -155,20 +198,14 @@ Project placement and verify at least two EVP roots before claiming cross-branch
 
 ## Web cutover gate
 
-Treat hosted environment replacement as a separate cutover. Sites returns existing secret values
-as non-exportable placeholders, so overwriting a source project's client secret, session secret, or
-Function keys without a recoverable rollback configuration can strand the previous version even
-when its source artifact is still available. Before changing the existing project, choose one:
+Treat customer-owned Azure App Service as the production host. Deploy a new isolated Web App and
+Key Vault in the target subscription; never overwrite another tenant's hosted environment or copy
+its client/session secrets. Retain the previous App Service package and previous Key Vault secret
+versions through the approved rollback window.
 
-- deploy a separate customer-owned web project/host and UAT its HTTPS callback;
-- retain customer-approved recoverable copies of the previous runtime secrets in an approved secret
-  manager; or
-- explicitly accept that rollback means rotating/reconstructing the source credentials.
-
-Only after that decision, add the exact target HTTPS callback, generate production-only Web client
-and session secrets, set the target API endpoints/keys, save a version from the exact pushed commit,
-deploy the owner-only version, and retest login, branch visibility, admin read/preview, and logout.
-Do not reuse or retain local-UAT client credentials.
+Only after workload checks pass, install the exact target HTTPS callback, provision production-only
+Web client/session secrets and Function bridge keys, publish the exact tested package, and retest
+login, branch visibility, admin read/preview and logout. Do not reuse local-UAT credentials.
 
 After Foundation succeeds, verify Shared Key remains disabled, the expected Tables exist, and no
 unexpected RBAC assignment was created. Continue in this order:
